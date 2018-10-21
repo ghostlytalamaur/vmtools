@@ -1,0 +1,12 @@
+[submodule "3rd_parties/jcl"]
+	path = 3rd_parties/jcl
+	url = git://github.com/project-jedi/jcl.git
+[submodule "3rd_parties/OmniThreadLibrary"]
+	path = 3rd_parties/OmniThreadLibrary
+	url = https://github.com/gabr42/OmniThreadLibrary.git
+[submodule "3rd_parties/FastMM4"]
+	path = 3rd_parties/FastMM4
+	url = https://github.com/pleriche/FastMM4.git
+[submodule "3rd_parties/vtree"]
+	path = 3rd_parties/vtree
+	url = https://github.com/sglienke/Virtual-TreeView.git

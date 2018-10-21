@@ -1,0 +1,26 @@
+compile
+dcu
+Debug
+Release
+*.identcache
+*.local
+*.gex
+__history
+
+# Delphi local files (user-specific info)
+*.local
+*.identcache
+*.projdata
+*.tvsconfig
+*.dsk
+*.txaPackage
+
+# Delphi history and backups
+__history/
+*.~*
+*.bak
+
+*.stat
+*.dof
+zzz_commit
+cond_define.inc

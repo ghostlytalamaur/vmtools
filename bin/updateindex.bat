@@ -1,0 +1,1 @@
+cindex -maxtrigrams 1000000 -indexpath %cd%\codesearch.index -exclude %~dp0codesearch.exclude %cd%\prj %cd%\src

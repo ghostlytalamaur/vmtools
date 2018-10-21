@@ -1,0 +1,12 @@
+{$I jedi.inc}
+
+{$IFOPT B+}
+  "Complete Boolean Evaluation" must be enabled.
+{$ENDIF}
+
+
+{$IFDEF DEBUG}
+{$IFOPT C-}
+  Assertions turned off.
+{$ENDIF}
+{$ENDIF}

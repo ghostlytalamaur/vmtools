@@ -1,0 +1,20 @@
+﻿<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+    <PropertyGroup>
+        <DCC_UnitSearchPath>..\..\3rd_parties\FastMM4;..\..\3rd_parties\jcl\jcl\source\common;..\..\3rd_parties\jcl\jcl\source\include;..\..\3rd_parties\jcl\jcl\source\include\jedi;..\..\3rd_parties\jcl\jcl\source\windows;..\..\3rd_parties\OmniThreadLibrary;..\..\3rd_parties\OmniThreadLibrary\src;..\..\3rd_parties\vtree\Source;..\..\3rd_parties\vtree\Source;..\..\3rd_parties\OmniThreadLibrary;..\..\3rd_parties\OmniThreadLibrary\src;..\..\3rd_parties\CnPack;..\..\src\jcl;$(DCC_UnitSearchPath)</DCC_UnitSearchPath>
+        <DCC_WIDECHAR_REDUCED>false</DCC_WIDECHAR_REDUCED>
+        <DCC_SYMBOL_PLATFORM>false</DCC_SYMBOL_PLATFORM>
+        <DCC_UNIT_PLATFORM>false</DCC_UNIT_PLATFORM>
+        <DCC_ExeOutput>..\..\bin\</DCC_ExeOutput>
+        <DCC_BplOutput>..\..\bin\</DCC_BplOutput>
+        <DCC_DcuOutput>..\..\dcu\$(Config)\$(Platform)</DCC_DcuOutput>
+        <DCC_SymbolReferenceInfo>2</DCC_SymbolReferenceInfo>
+    </PropertyGroup>
+    <ProjectExtensions>
+        <Borland.Personality>Delphi.Personality.12</Borland.Personality>
+        <Borland.ProjectType>OptionSet</Borland.ProjectType>
+        <BorlandProject>
+            <Delphi.Personality/>
+        </BorlandProject>
+        <ProjectFileVersion>12</ProjectFileVersion>
+    </ProjectExtensions>
+</Project>
