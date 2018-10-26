@@ -15,7 +15,6 @@ uses
   opt_frame in '..\..\src\options\opt_frame.pas' {OptionsFrame: TFrame},
   openfile_frame in '..\..\src\openfile\openfile_frame.pas' {OpenFileFrame: TFrame},
   search_frame in '..\..\src\search\search_frame.pas' {SearchResultFrame: TFrame},
-  templates.dlg in '..\..\src\templates\templates.dlg.pas' {TemplatesParamsDlg},
   vm.debug in '..\..\src\common\vm.debug.pas';
 
 {$R *.res}

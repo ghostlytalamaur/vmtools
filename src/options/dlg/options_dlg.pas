@@ -13,7 +13,6 @@ type
   TOptForm = class(TBaseForm)
     pnlOptions: TPanel;
     pnlTop: TPanel;
-    btnTemplates: TBitBtn;
     btnOk: TBitBtn;
     btnCancel: TBitBtn;
     pnlFiles: TPanel;
@@ -26,8 +25,6 @@ type
     Panel1: TPanel;
     btnApplyOptions: TButton;
     btnDefaultOptions: TButton;
-    btnTestAction: TButton;
-    procedure btnTemplatesClick(Sender: TObject);
     procedure btnApplyOptionsClick(Sender: TObject);
     procedure btnDefaultOptionsClick(Sender: TObject);
     procedure btnSearchClick(Sender: TObject);
@@ -54,7 +51,7 @@ implementation
 
 uses
   str_utils, ioutils, Types, search_test_dlg, Menus, Rtti, TypInfo,
-  templates.dlg, generics.collections, Vcl.ActnList, vmsys;
+  generics.collections, Vcl.ActnList, vmsys;
 
 {$R *.dfm}
 
@@ -83,18 +80,6 @@ type
   end;
 
 { TOptForm }
-
-procedure TOptForm.btnTemplatesClick(Sender: TObject);
-var
-  Dlg: TForm;
-begin
-  Dlg := TTemplatesParamsDlg.Create(nil);
-  try
-    Dlg.ShowModal;
-  finally
-    FreeAndNil(Dlg);
-  end;
-end;
 
 function TOptForm.CanCloseByDialogKey(aKeyCode: Word): Boolean;
 begin

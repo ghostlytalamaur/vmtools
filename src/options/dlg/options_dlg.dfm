@@ -23,15 +23,6 @@ object OptForm: TOptForm
     Height = 57
     Align = alTop
     TabOrder = 0
-    object btnTemplates: TBitBtn
-      Left = 248
-      Top = 11
-      Width = 75
-      Height = 25
-      Caption = 'Templates...'
-      TabOrder = 0
-      OnClick = btnTemplatesClick
-    end
     object btnOk: TBitBtn
       Left = 5
       Top = 11
@@ -39,7 +30,7 @@ object OptForm: TOptForm
       Height = 25
       Kind = bkOK
       NumGlyphs = 2
-      TabOrder = 1
+      TabOrder = 0
     end
     object btnCancel: TBitBtn
       Left = 86
@@ -48,7 +39,7 @@ object OptForm: TOptForm
       Height = 25
       Kind = bkCancel
       NumGlyphs = 2
-      TabOrder = 2
+      TabOrder = 1
     end
     object btnSearch: TBitBtn
       Left = 167
@@ -56,17 +47,8 @@ object OptForm: TOptForm
       Width = 75
       Height = 25
       Caption = 'Search...'
-      TabOrder = 3
+      TabOrder = 2
       OnClick = btnSearchClick
-    end
-    object btnTestAction: TButton
-      Left = 336
-      Top = 11
-      Width = 75
-      Height = 25
-      Caption = 'btnTestAction'
-      TabOrder = 4
-      OnClick = btnTestActionClick
     end
   end
   object PageControl1: TPageControl
@@ -74,7 +56,7 @@ object OptForm: TOptForm
     Top = 57
     Width = 833
     Height = 599
-    ActivePage = TabSheet1
+    ActivePage = TabSheet2
     Align = alClient
     TabOrder = 1
     object TabSheet1: TTabSheet
@@ -105,7 +87,7 @@ object OptForm: TOptForm
             Columns = <
               item
                 Position = 0
-                Width = 537
+                Width = 533
                 WideText = 'Key'
               end
               item
@@ -146,10 +128,6 @@ object OptForm: TOptForm
     object TabSheet2: TTabSheet
       Caption = 'OpenFile'
       ImageIndex = 1
-      ExplicitLeft = 0
-      ExplicitTop = 0
-      ExplicitWidth = 0
-      ExplicitHeight = 0
       object pnlFiles: TPanel
         Left = 0
         Top = 0
