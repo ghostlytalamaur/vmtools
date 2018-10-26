@@ -17,6 +17,8 @@ object SearchResultFrame: TSearchResultFrame
     ClipboardFormats.Strings = (
       'HTML Format'
       'Unicode text')
+    Colors.UnfocusedColor = clBtnShadow
+    Colors.UnfocusedSelectionColor = clHotLight
     DrawSelectionMode = smBlendedRectangle
     EmptyListMessage = 'No search results...'
     Header.AutoSizeIndex = 0
