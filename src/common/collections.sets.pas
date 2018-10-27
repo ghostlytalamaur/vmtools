@@ -26,7 +26,7 @@ type
   protected
     function DoGetEnumerator: IEnumerator<T>; override;
   public
-    constructor Create;
+    constructor Create(aCapacity: Integer = 0);
     destructor Destroy; override;
     {ISet<T>}
     function GetCount: Integer;
@@ -44,10 +44,10 @@ uses
 
 { THashSet<T> }
 
-constructor THashSet<T>.Create;
+constructor THashSet<T>.Create(aCapacity: Integer = 0);
 begin
   inherited Create;
-  FDict := TDictionary<T,TVoid>.Create;
+  FDict := TDictionary<T,TVoid>.Create(aCapacity);
 end;
 
 destructor THashSet<T>.Destroy;

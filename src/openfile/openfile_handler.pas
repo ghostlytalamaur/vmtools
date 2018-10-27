@@ -69,7 +69,7 @@ implementation
 uses
   SysUtils, ioutils, masks, str_utils, generics.defaults,
   regularexpressionscore,
-  OtlCollections, collections.array_utils, opt_impl;
+  OtlCollections, collections.array_utils, opt_impl, collections.sets;
 
 type
   TRefreshWorkItemResult = class
@@ -168,76 +168,66 @@ begin
   inherited;
 end;
 
-type
-  Void = record end;
 function TBaseOpenFileHandler.GetFilePaths(aWorkItem: IOmniWorkItem): TTST<TFilePathRec>;
 var
-  FilePathsSet: TDictionary<string, Void>;
+  FilePathsSet: ISet<string>;
   FileMasks: TArray<string>;
-  V: Void;
 
   procedure TryAppendFile(const aFilePath: string);
   begin
-    if FilePathsSet.ContainsKey(aFilePath) or not TStrUtils.MatchesMasks(aFilePath, FileMasks) then
+    if FilePathsSet.Contains(aFilePath) or not TStrUtils.MatchesMasks(aFilePath, FileMasks) then
       Exit;
 
-    FilePathsSet.AddOrSetValue(aFilePath, V);
+    FilePathsSet.Add(aFilePath);
   end;
 
 var
   DirPath: string;
   FilePath: string;
   DirPaths: IEnumerable<string>;
-  Processed: TDictionary<string, Void>;
+  Processed: ISet<string>;
   Rec: TFilePathRec;
   Size: Int64;
 begin
   Result := nil;
-  Processed := nil;
-  FilePathsSet := nil;
-  try
-    Size:= 0;
-    Processed := TDictionary<string, Void>.Create(10000);
-    FilePathsSet := TDictionary<string, Void>.Create(10000);
-    DirPaths := GetDirPaths;
-    FileMasks := GetFileMasks;
-    for DirPath in DirPaths do
+  Size:= 0;
+  Processed := THashSet<string>.Create(10000);
+  FilePathsSet := THashSet<string>.Create(10000);
+  DirPaths := GetDirPaths;
+  FileMasks := GetFileMasks;
+  for DirPath in DirPaths do
+  begin
+    if aWorkItem.CancellationToken.IsSignalled then
+      Exit;
+
+    if Processed.Contains(DirPath) or not TDirectory.Exists(DirPath) then
+      Continue;
+
+    Processed.Add(DirPath);
+    for FilePath in TDirectory.GetFiles(DirPath, '*', TSearchOption.soTopDirectoryOnly) do
     begin
       if aWorkItem.CancellationToken.IsSignalled then
         Exit;
 
-      if Processed.ContainsKey(DirPath) or not TDirectory.Exists(DirPath) then
-        Continue;
-
-      Processed.AddOrSetValue(DirPath, V);
-      for FilePath in TDirectory.GetFiles(DirPath, '*', TSearchOption.soTopDirectoryOnly) do
-      begin
-        if aWorkItem.CancellationToken.IsSignalled then
-          Exit;
-
-        TryAppendFile(FilePath);
-      end;
-    end;
-
-    for FilePath in GetAdditionFileList do
       TryAppendFile(FilePath);
-
-    for FilePath in FilePathsSet.Keys do
-    begin
-      Rec := TFilePathRec.Create(FilePath);
-      if Result = nil then
-        Result := TTST<TFilePathRec>.Create;
-      Result.PutValue(TStrUtils.Normalize(Rec.FileName), Rec);
-      Inc(Size, (Length(FilePath) + Length(TStrUtils.Normalize(Rec.FileName))) * SizeOf(FilePath[1]));
-      if aWorkItem.CancellationToken.IsSignalled then
-      begin
-        FreeAndNil(Result);
-        Exit;
-      end;
     end;
-  finally
-    FreeAndNil(Processed);
-    FreeAndNil(FilePathsSet);
+  end;
+
+  for FilePath in GetAdditionFileList do
+    TryAppendFile(FilePath);
+
+  for FilePath in FilePathsSet do
+  begin
+    Rec := TFilePathRec.Create(FilePath);
+    if Result = nil then
+      Result := TTST<TFilePathRec>.Create;
+    Result.PutValue(TStrUtils.Normalize(Rec.FileName), Rec);
+    Inc(Size, (Length(FilePath) + Length(TStrUtils.Normalize(Rec.FileName))) * SizeOf(FilePath[1]));
+    if aWorkItem.CancellationToken.IsSignalled then
+    begin
+      FreeAndNil(Result);
+      Exit;
+    end;
   end;
 end;
 
@@ -371,6 +361,8 @@ end;
 
 procedure TBaseOpenFileHandler.FilterPaths;
 begin
+  if Status.getValue in [ofht_Filtering] then
+    FWorker.CancelAll;
   FWorker.Schedule(
       FWorker.CreateWorkItem(FFilter),
       FWorker.Config
