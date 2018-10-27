@@ -232,6 +232,7 @@ end;
 procedure TSearchResultFrame.OnStatusTextChanged(aStatusText: string);
 begin
   lblStatus.Caption := aStatusText;
+  lblStatus.Visible := True;
 end;
 
 procedure TSearchResultFrame.OnNewResults(aList: TVMSearchResultsList);
@@ -284,7 +285,6 @@ begin
       toUseBlendedImages, toShowTreeLines, toShowVertGridLines, toFullVertGridLines, toShowHorzGridLines];
   vstResults.TreeOptions.SelectionOptions := [toFullRowSelect];
   vstResults.Header.Options := [hoColumnResize, hoDrag, hoShowSortGlyphs, hoFullRepaintOnResize, hoHeaderClickAutoSort];
-  lblStatus.Caption := '';
 end;
 
 destructor TSearchResultFrame.Destroy;

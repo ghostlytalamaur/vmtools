@@ -44,7 +44,6 @@ object SearchResultFrame: TSearchResultFrame
     OnGetText = vstResultsGetText
     OnInitNode = vstResultsInitNode
     OnNodeHeightTracking = vstResultsNodeHeightTracking
-    ExplicitHeight = 302
     Columns = <
       item
         Position = 0
@@ -141,6 +140,7 @@ object SearchResultFrame: TSearchResultFrame
       Margins.Right = 8
       Margins.Bottom = 0
       Caption = 'Status'
+      Visible = False
     end
   end
   object pmTabs: TPopupMenu
