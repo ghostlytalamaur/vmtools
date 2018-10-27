@@ -207,7 +207,10 @@ begin
     Engine := TCodeSearchEngine.Create(Progress, ValidPaths);
 
     ErrorCode := Engine.Search(Data.Params, GetIndexSearchPaths, SearchResults);
-    WorkItemRes := TWorkItemResult.Create(ErrorCode, ConvertResults(SearchResults), SearchResults.AcquireErrors);
+    if SearchResults <> nil then
+      WorkItemRes := TWorkItemResult.Create(ErrorCode, ConvertResults(SearchResults), SearchResults.AcquireErrors)
+    else
+      WorkItemRes := TWorkItemResult.Create(ErrorCode, ConvertResults(SearchResults), nil);
     WorkItemRes.SearchTime := Stopwatch.ElapsedMilliseconds;
     Res.AsOwnedObject := WorkItemRes;
     workItem.Result := Res;
