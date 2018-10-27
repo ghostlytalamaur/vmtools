@@ -3,7 +3,7 @@ unit csplg_types;
 interface
 
 uses
-  generics.collections;
+  generics.collections, classes;
 
 type
   TSearchItem = class(TObject)
@@ -27,15 +27,21 @@ type
   TSearchResults = class(TObject)
   private
     FItems: TList<TSearchItem>;
+    FErrors: TStringList;
+
     function GetCount: Integer;
     function GetItems(aIndex: Integer): TSearchItem;
+    function GetErrors: TStringList;
   public
     constructor Create;
     destructor Destroy; override;
 
+    function AcquireErrors: TStringList;
+
     procedure Add(aItem: TSearchItem);
     property Items[aIndex: Integer]: TSearchItem read GetItems; default;
     property Count: Integer read GetCount;
+    property Errors: TStringList read GetErrors;
   end;
 
 implementation
@@ -77,6 +83,19 @@ end;
 function TSearchResults.GetCount: Integer;
 begin
   Result := FItems.Count;
+end;
+
+function TSearchResults.GetErrors: TStringList;
+begin
+  if FErrors = nil then
+    FErrors := TStringList.Create;
+  Result := FErrors;
+end;
+
+function TSearchResults.AcquireErrors: TStringList;
+begin
+  Result := FErrors;
+  FErrors := nil;
 end;
 
 function TSearchResults.GetItems(aIndex: Integer): TSearchItem;

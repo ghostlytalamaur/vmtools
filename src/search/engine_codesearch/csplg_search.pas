@@ -18,13 +18,15 @@ type
 
     FAbort: Boolean;
     FCallback: TOutputLineCallback;
+    FErrorCallback: TOutputLineCallback;
 
     procedure OnLineCallback(const Text: string);
+    procedure OnErrorCallback(const Text: string);
   public
     constructor Create(const aAppName, aCommandLine: string; aCancellationToken: IOmniCancellationToken);
     destructor Destroy; override;
 
-    function Execute(OnNewOutputLine: TOutputLineCallback; const aPriority: string): Boolean;
+    function Execute(OnNewOutputLine, OnNewErrorLine: TOutputLineCallback; const aPriority: string): Boolean;
   end;
 
   TCodeSearchEngineParams = class(TBaseParams)
@@ -49,32 +51,6 @@ type
     property UpdateProgressEachItems: Integer read FUpdateProgressEachItems;
   end;
 
-  TCodeSearchFilter = class(TObject)
-  public
-    function IsValidLine(const aLine: string): Boolean; virtual; abstract;
-  end;
-
-  TCodeSearchPathFilter = class(TCodeSearchFilter)
-  strict private
-    FPaths: TStringList;
-  public
-    constructor Create(const aPaths: TStringList);
-    destructor Destroy; override;
-
-    function IsValidLine(const aLine: string): Boolean; override;
-  end;
-
-  TCodeSearchFilterList = class(TObject)
-  strict private
-    FFilters: TList<TCodeSearchFilter>;
-  public
-    constructor Create;
-    destructor Destroy; override;
-
-    procedure AddFilter(aFilter: TCodeSearchFilter);
-    function IsValidLine(const aLine: string): Boolean;
-  end;
-
   TCodeSearchEngineError = (csee_Successful, csee_Unknown, csee_InvalidQuery, csee_NoIndex, csee_Cancelled,
       csee_NothingFound);
   TCodeSearchEngine = class(TObject)
@@ -91,7 +67,8 @@ type
     function DoSearchMultiThread2(aParams: TCodeSearchQueryParams; aIndexFile: string;
         out Results: TSearchResults): TCodeSearchEngineError;
 
-    function CreateSearchExecutor(aParams: TCodeSearchQueryParams; aIndexFile: string): TPipelineStageDelegateEx;
+    function CreateSearchExecutor(aParams: TCodeSearchQueryParams; aIndexFile: string;
+        DestErrors: TStringList): TPipelineStageDelegateEx;
     function CreateItemAnalyzer(aParams: TCodeSearchQueryParams): TPipelineStageDelegateEx;
   public
     constructor Create(aProgress: TBaseProgress; aValidPaths: TStringList);
@@ -107,14 +84,13 @@ implementation
 
 uses
   windows, jclsysutils, generics.defaults, math,
-  str_utils, strutils;
+  str_utils, strutils, collections.sets;
 
 type
   TParserState = class
     Parser: TCodeSearchParser;
-    Filters: TCodeSearchFilterList;
 
-    constructor Create(aParser: TCodeSearchParser; aFilters: TCodeSearchFilterList);
+    constructor Create(aParser: TCodeSearchParser);
     destructor Destroy; override;
   end;
 
@@ -221,7 +197,7 @@ begin
 end;
 
 function TCodeSearchEngine.CreateSearchExecutor(aParams: TCodeSearchQueryParams;
-    aIndexFile: string): TPipelineStageDelegateEx;
+    aIndexFile: string; DestErrors: TStringList): TPipelineStageDelegateEx;
 begin
   Result := procedure (const input, output: IOmniBlockingCollection; const task: IOmniTask)
   var
@@ -236,6 +212,11 @@ begin
         procedure (const aLine: string)
         begin
           MultilineParser.AppendLine(aLine)
+        end,
+        procedure (const aLine: string)
+        begin
+          if DestErrors <> nil then
+            DestErrors.Add(aLine);
         end, FParams.CSearchProcessPriority);
 
       MultilineParser.FlushBuffer;
@@ -283,18 +264,22 @@ var
   Pipeline: IOmniPipeline;
   OmniVal: TOmniValue;
   ResultsCount: Integer;
-  TotalFiles: TDictionary<string, Void>;
+  TotalFiles: ISet<string>;
   Item: TSearchItem;
-  V: Void;
+  Errors: TStringList;
 begin
   Result := csee_Unknown;
-  Pipeline := Parallel.Pipeline
-    .Stage(CreateSearchExecutor(aParams, aIndexFile)).NumTasks(1)
-    .Stage(CreateItemAnalyzer(aParams)).NumTasks(2)
-    .Run;
 
-  TotalFiles := TDictionary<string, Void>.Create;
+  Pipeline := nil;
+  Errors := nil;
+  TotalFiles := THashSet<string>.Create;
   try
+    Errors := TStringList.Create;
+    Pipeline := Parallel.Pipeline
+        .Stage(CreateSearchExecutor(aParams, aIndexFile, Errors)).NumTasks(1)
+        .Stage(CreateItemAnalyzer(aParams)).NumTasks(2)
+        .Run;
+
     while not Pipeline.Output.IsFinalized do
     begin
       if Pipeline.Output.TryTake(OmniVal, 10) and OmniVal.IsOwnedObject then
@@ -305,7 +290,7 @@ begin
         OmniVal.OwnsObject := False;
         OmniVal.Clear;
         Results.Add(Item);
-        TotalFiles.AddOrSetValue(Item.FilePath, V);
+        TotalFiles.Add(Item.FilePath);
       end;
 
       if Results <> nil then
@@ -326,8 +311,15 @@ begin
     else
       Result := csee_NothingFound;
   finally
-    Pipeline.WaitFor(INFINITE);
-    FreeAndNil(TotalFiles);
+    if Pipeline <> nil then
+      Pipeline.WaitFor(INFINITE);
+    if (Errors <> nil) and (Errors.Count > 0) then
+    begin
+      if Results = nil then
+        Results := TSearchResults.Create;
+      Results.Errors.Assign(Errors);
+    end;
+    FreeAndNil(Errors);
   end;
 end;
 
@@ -368,15 +360,28 @@ begin
   inherited;
 end;
 
-function TJCLAppExecutor.Execute(OnNewOutputLine: TOutputLineCallback; const aPriority: string): Boolean;
+function TJCLAppExecutor.Execute(OnNewOutputLine, OnNewErrorLine: TOutputLineCallback; const aPriority: string): Boolean;
+var
+  CmdOptions: TJclExecuteCmdProcessOptions;
 begin
   try
+    CmdOptions := nil;
     FCallback := OnNewOutputLine;
+    FErrorCallback := OnNewErrorLine;
     try
-      Result := jclsysutils.Execute(FAppName + ' ' + FCommandLine, OnLineCallback, True, @FAbort, 
-          JclProcessPriorityFromString(aPriority)) = 0;
+      CmdOptions := TJclExecuteCmdProcessOptions.Create(FAppName + ' ' + FCommandLine);
+      CmdOptions.AbortPtr := @FAbort;
+      CmdOptions.ProcessPriority := JclProcessPriorityFromString(aPriority);
+      CmdOptions.RawOutput := True;
+      CmdOptions.RawError := True;
+      CmdOptions.MergeError := False;
+      CmdOptions.OutputLineCallback := OnLineCallback;
+      CmdOptions.ErrorLineCallback := OnErrorCallback;
+      Result := ExecuteCmdProcess(CmdOptions);
     finally
       FCallback := nil;;
+      FErrorCallback := nil;
+      FreeAndNil(CmdOptions);
     end;
   except
     Result := False;
@@ -389,6 +394,14 @@ begin
     FAbort := True
   else if Assigned(FCallback) then
     FCallback(Text);
+end;
+
+procedure TJCLAppExecutor.OnErrorCallback(const Text: string);
+begin
+  if FCancellationToken.IsSignalled then
+    FAbort := True
+  else if Assigned(FErrorCallback) then
+    FErrorCallback(Text);
 end;
 
 { TCodeSearchEngineParams }
@@ -417,75 +430,17 @@ begin
   FUpdateProgressEachItems := 10;
 end;
 
-{ TCodeSearchPathFilter }
-
-constructor TCodeSearchPathFilter.Create(const aPaths: TStringList);
-begin
-  inherited Create;
-  FPaths := TStringList.Create;
-  if aPaths <> nil then
-    FPaths.Assign(aPaths);
-end;
-
-destructor TCodeSearchPathFilter.Destroy;
-begin
-  FreeAndNil(FPaths);
-  inherited;
-end;
-
-function TCodeSearchPathFilter.IsValidLine(const aLine: string): Boolean;
-var
-  Path: string;
-begin
-  for Path in FPaths do
-    if TStrUtils.PosI(Path, aLine) > 0 then
-      Exit(True);
-  Result := False;
-end;
-
-{ TCodeSearchFilterList }
-
-procedure TCodeSearchFilterList.AddFilter(aFilter: TCodeSearchFilter);
-begin
-  FFilters.Add(aFilter);
-end;
-
-constructor TCodeSearchFilterList.Create;
-begin
-  inherited Create;
-  FFilters := TObjectList<TCodeSearchFilter>.Create;
-end;
-
-destructor TCodeSearchFilterList.Destroy;
-begin
-  FreeAndNil(FFilters);
-  inherited;
-end;
-
-function TCodeSearchFilterList.IsValidLine(const aLine: string): Boolean;
-var
-  Filter: TCodeSearchFilter;
-begin
-  for Filter in FFilters do
-    if not Filter.IsValidLine(aLine) then
-      Exit(False);
-  Result := True;
-end;
-
 { TParserState }
 
-constructor TParserState.Create(aParser: TCodeSearchParser; aFilters:
-    TCodeSearchFilterList);
+constructor TParserState.Create(aParser: TCodeSearchParser);
 begin
   inherited Create;
   Parser := aParser;
-  Filters := aFilters;
 end;
 
 destructor TParserState.Destroy;
 begin
   FreeAndNil(Parser);
-  FreeAndNil(Filters);
   inherited;
 end;
 

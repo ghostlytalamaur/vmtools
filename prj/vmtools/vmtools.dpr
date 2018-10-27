@@ -54,7 +54,6 @@ uses
   search_frame in '..\..\src\search\search_frame.pas' {SearchResultFrame: TFrame},
   search_handler in '..\..\src\search\search_handler.pas',
   search_query_dlg in '..\..\src\search\search_query_dlg.pas' {SearchEngineQueryDlg},
-  search_test_dlg in '..\..\src\search\search_test_dlg.pas' {SearchTestDlg},
   search_types in '..\..\src\search\search_types.pas',
   vm_wiz_activate_editor in '..\..\src\vmtools\activate_editor\vm_wiz_activate_editor.pas',
   hist_wiz in '..\..\src\vmtools\history\hist_wiz.pas',
@@ -69,7 +68,8 @@ uses
   csplg_parser in '..\..\src\search\engine_codesearch\csplg_parser.pas',
   csplg_query_params in '..\..\src\search\engine_codesearch\csplg_query_params.pas',
   csplg_search in '..\..\src\search\engine_codesearch\csplg_search.pas',
-  csplg_types in '..\..\src\search\engine_codesearch\csplg_types.pas';
+  csplg_types in '..\..\src\search\engine_codesearch\csplg_types.pas',
+  vm.memodlg in '..\..\src\common\vm.memodlg.pas' {MemoDialog};
 
 {$R *.res}
 

@@ -15,7 +15,9 @@ uses
   opt_frame in '..\..\src\options\opt_frame.pas' {OptionsFrame: TFrame},
   openfile_frame in '..\..\src\openfile\openfile_frame.pas' {OpenFileFrame: TFrame},
   search_frame in '..\..\src\search\search_frame.pas' {SearchResultFrame: TFrame},
-  vm.debug in '..\..\src\common\vm.debug.pas';
+  vm.debug in '..\..\src\common\vm.debug.pas',
+  collections.sets in '..\..\src\common\collections.sets.pas',
+  vm.memodlg in '..\..\src\common\vm.memodlg.pas' {MemoDialog};
 
 {$R *.res}
 

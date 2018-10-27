@@ -10,7 +10,7 @@ uses
   StdCtrls, Grids, Menus, vtree_mod, ComCtrls,
   search_types, generics.collections, IniFiles,
   Tabs, Types, VirtualTrees, observer, search_handler,
-  ActnList
+  ActnList, Buttons, ExtCtrls
 {$IFNDEF DELPHIXE}, System.Actions{$ENDIF}
   ;
 
@@ -50,14 +50,17 @@ type
     miShowHeader: TMenuItem;
     vstResults: TVirtualStringTree;
     tbcTabs: TTabSet;
-    StatusBar1: TStatusBar;
-    miCancellCurrent: TMenuItem;
-    N1: TMenuItem;
+    pnlStatus: TFlowPanel;
+    btnShowErrors: TSpeedButton;
+    btnCancel: TSpeedButton;
+    lblStatus: TLabel;
     procedure vstResultsInitNode(Sender: TBaseVirtualTree; ParentNode, Node: PVirtualNode;
       var InitialStates: TVirtualNodeInitStates);
     procedure vstResultsGetText(Sender: TBaseVirtualTree; Node: PVirtualNode; Column: TColumnIndex;
       TextType: TVSTTextType; var CellText: string);
     procedure actCloseTabExecute(Sender: TObject);
+    procedure btnCancelClick(Sender: TObject);
+    procedure btnShowErrorsClick(Sender: TObject);
     procedure vstResultsDblClick(Sender: TObject);
     procedure vstResultsCompareNodes(Sender: TBaseVirtualTree; Node1, Node2: PVirtualNode; Column: TColumnIndex;
       var Result: Integer);
@@ -84,11 +87,13 @@ type
     FStatusObservers: TList<IDataObserver<TSearchStatusCode>>;
     FStatusTextObserver: IDataObserver<string>;
     FResultsObserver: IDataObserver<TVMSearchResultsList>;
+    FErrorsObserver: IDataObserver<TStringList>;
 
     procedure OnSearchInfoAdded(aIndex: Integer);
     procedure OnSearchInfoRemoved(aIndex: Integer);
     procedure OnStatusTextChanged(aStatusText: string);
     procedure OnNewResults(aList: TVMSearchResultsList);
+    procedure OnErrorsChanged(aErrors: TStringList);
 
     procedure RemoveStatusObservers;
     procedure UpdateResults;
@@ -111,7 +116,7 @@ type
 implementation
 
 uses
-  Math, RichEdit, StrUtils, ExtCtrls, str_utils, virtualtrees.utils, collections.common;
+  Math, RichEdit, StrUtils, str_utils, virtualtrees.utils, collections.common, vm.memodlg;
 
 {$R *.dfm}
 
@@ -226,12 +231,20 @@ end;
 
 procedure TSearchResultFrame.OnStatusTextChanged(aStatusText: string);
 begin
-  StatusBar1.Panels[0].Text := aStatusText;
+  lblStatus.Caption := aStatusText;
 end;
 
 procedure TSearchResultFrame.OnNewResults(aList: TVMSearchResultsList);
 begin
   UpdateResults;
+end;
+
+procedure TSearchResultFrame.OnErrorsChanged(aErrors: TStringList);
+begin
+  if (aErrors = nil) or (aErrors.Count <= 0) then
+    btnShowErrors.Visible := False
+  else
+    btnShowErrors.Visible := True;
 end;
 
 type
@@ -251,6 +264,7 @@ begin
   FHandlerListener := TDelegatedSearchResultsListener.Create(OnSearchInfoAdded, OnSearchInfoRemoved);
   FStatusTextObserver := TDelegatedDataObserver<string>.Create(OnStatusTextChanged);
   FResultsObserver := TDelegatedDataObserver<TVMSearchResultsList>.Create(OnNewResults);
+  FErrorsObserver := TDelegatedDataObserver<TStringList>.Create(OnErrorsChanged);
 
   FTextDrawer := TFormatTextDrawer.Create;
   vstResults.Clear;
@@ -270,6 +284,7 @@ begin
       toUseBlendedImages, toShowTreeLines, toShowVertGridLines, toFullVertGridLines, toShowHorzGridLines];
   vstResults.TreeOptions.SelectionOptions := [toFullRowSelect];
   vstResults.Header.Options := [hoColumnResize, hoDrag, hoShowSortGlyphs, hoFullRepaintOnResize, hoHeaderClickAutoSort];
+  lblStatus.Caption := '';
 end;
 
 destructor TSearchResultFrame.Destroy;
@@ -281,6 +296,20 @@ begin
   FreeAndNil(FTextDrawer);
   FreeAndNil(FResults);
   inherited;
+end;
+
+procedure TSearchResultFrame.btnCancelClick(Sender: TObject);
+begin
+  miCancellCurrentClick(Sender);
+end;
+
+procedure TSearchResultFrame.btnShowErrorsClick(Sender: TObject);
+begin
+  if (CurInfo = nil) or (CurInfo.Info = nil) or
+      (CurInfo.Info.Errors.getValue = nil) or (CurInfo.Info.Errors.getValue.Count <= 0) then
+    Exit;
+
+  TMemoDialog.Execute('Errors', CurInfo.Info.Errors.getValue.Text);
 end;
 
 procedure TSearchResultFrame.RemoveStatusObservers;
@@ -346,6 +375,7 @@ begin
   begin
     CurInfo.Info.Results.RemoveObserver(FResultsObserver);
     CurInfo.Info.StatusText.RemoveObserver(FStatusTextObserver);
+    CurInfo.Info.Errors.RemoveObserver(FErrorsObserver);
   end;
 
   FCurInfoIndex := aIndex;
@@ -353,9 +383,13 @@ begin
   begin
     CurInfo.Info.Results.RegisterObserver(FResultsObserver);
     CurInfo.Info.StatusText.RegisterObserver(FStatusTextObserver);
+    CurInfo.Info.Errors.RegisterObserver(FErrorsObserver);
   end
   else
-    StatusBar1.Panels[0].Text := '';
+  begin
+    lblStatus.Visible := False;
+    btnShowErrors.Visible := False;
+  end;
 
   UpdateResults;
 end;
@@ -540,9 +574,6 @@ end;
 procedure TSearchResultFrame.pmTreeViewPopup(Sender: TObject);
 begin
   miShowHeader.Checked := hoVisible in vstResults.Header.Options;
-
-  miCancellCurrent.Enabled := (CurInfo <> nil) and (CurInfo.Info <> nil) and
-      (CurInfo.Info.Status.getValue in [ssc_Searching, ssc_Queued]);
 end;
 
 procedure TSearchResultFrame.miShowHeaderClick(Sender: TObject);
@@ -693,6 +724,7 @@ var
   TabIndex: Integer;
   Info: TSearchInfo;
 begin
+  FFrame.btnCancel.Visible := aData in [ssc_Queued, ssc_Searching];
   if not FFrame.FHandler.IsAlive then
     Exit;
 

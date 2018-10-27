@@ -6,7 +6,7 @@ uses
   Windows, Messages, SysUtils, Variants, Classes, Graphics, Controls, Forms,
   Dialogs, opt_frame, opt_impl, baseform, StdCtrls, Buttons, ExtCtrls,
   ComCtrls,
-  openfile_handler, openfile_frame;
+  openfile_handler, openfile_frame, search_frame, search_handler;
 
 
 type
@@ -17,7 +17,6 @@ type
     btnCancel: TBitBtn;
     pnlFiles: TPanel;
     OptionsFrame1: TOptionsFrame;
-    btnSearch: TBitBtn;
     OpenFileFrame1: TOpenFileFrame;
     PageControl1: TPageControl;
     TabSheet1: TTabSheet;
@@ -25,6 +24,11 @@ type
     Panel1: TPanel;
     btnApplyOptions: TButton;
     btnDefaultOptions: TButton;
+    tsSearch: TTabSheet;
+    pnlSearch: TPanel;
+    SearchResultFrame1: TSearchResultFrame;
+    pnlSearchRight: TPanel;
+    btnSearch: TButton;
     procedure btnApplyOptionsClick(Sender: TObject);
     procedure btnDefaultOptionsClick(Sender: TObject);
     procedure btnSearchClick(Sender: TObject);
@@ -34,6 +38,7 @@ type
     FOptions: TParamsTree;
     FCopyParams: TParamsTree;
     FOpenFileHandler: TBaseOpenFileHandler;
+    FSearchHandler: TSearchHandler;
   protected
     function CanCloseByDialogKey(aKeyCode: Word): Boolean; override;
     procedure SetupControls; override;
@@ -50,7 +55,7 @@ var
 implementation
 
 uses
-  str_utils, ioutils, Types, search_test_dlg, Menus, Rtti, TypInfo,
+  str_utils, ioutils, Types, Menus, Rtti, TypInfo,
   generics.collections, Vcl.ActnList, vmsys;
 
 {$R *.dfm}
@@ -79,6 +84,13 @@ type
     destructor Destroy; override;
   end;
 
+  TTestSearchHandler = class(TSearchHandler)
+  public
+    function GetProjectPaths: IEnumerable<string>; override;
+    function GetIndexSearchPaths: TArray<string>; override;
+    function GetQueryText: string; override;
+  end;
+
 { TOptForm }
 
 function TOptForm.CanCloseByDialogKey(aKeyCode: Word): Boolean;
@@ -91,6 +103,10 @@ var
   G, G2: TParamsGroup;
 begin
   inherited Create(aOwner);
+
+  FSearchHandler := TTestSearchHandler.Create;
+  SearchResultFrame1.SetHandler(FSearchHandler);
+
   FOpenFileHandler := TTestOpenFileHandler.Create;
   OpenFileFrame1.SetHandler(FOpenFileHandler);
 
@@ -136,6 +152,7 @@ begin
   FreeAndNil(FCopyParams);
   FreeAndNil(FOptions);
   FreeAndNil(FOpenFileHandler);
+  FreeAndNil(FSearchHandler);
   inherited;
 end;
 
@@ -152,15 +169,8 @@ begin
 end;
 
 procedure TOptForm.btnSearchClick(Sender: TObject);
-var
-  Dlg: TSearchTestDlg;
 begin
-  Dlg := TSearchTestDlg.Create(self);
-  try
-    Dlg.ShowModal;
-  finally
-    Dlg.Free;
-  end;
+  FSearchHandler.ExecuteSearch;
 end;
 
 procedure TOptForm.btnTestActionClick(Sender: TObject);
@@ -277,6 +287,24 @@ destructor TSomeHandler.Destroy;
 begin
   FDestoryed := True;
   inherited;
+end;
+
+{ TTestSearchHandler }
+
+function TTestSearchHandler.GetIndexSearchPaths: TArray<string>;
+begin
+  SetLength(Result, 1);
+  Result[0] := 'D:\dev\delphi\vmtools';
+end;
+
+function TTestSearchHandler.GetProjectPaths: IEnumerable<string>;
+begin
+  Result := TStrUtils.Words('', []);
+end;
+
+function TTestSearchHandler.GetQueryText: string;
+begin
+  Result := 'string';
 end;
 
 end.

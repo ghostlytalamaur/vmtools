@@ -1,0 +1,55 @@
+object MemoDialog: TMemoDialog
+  Left = 0
+  Top = 0
+  ClientHeight = 411
+  ClientWidth = 852
+  Color = clBtnFace
+  Font.Charset = DEFAULT_CHARSET
+  Font.Color = clWindowText
+  Font.Height = -11
+  Font.Name = 'Tahoma'
+  Font.Style = []
+  OldCreateOrder = False
+  PixelsPerInch = 96
+  TextHeight = 13
+  object pnlButtons: TPanel
+    Left = 0
+    Top = 370
+    Width = 852
+    Height = 41
+    Align = alBottom
+    BevelOuter = bvNone
+    TabOrder = 0
+    ExplicitLeft = 524
+    ExplicitTop = 352
+    ExplicitWidth = 185
+    object btnOk: TButton
+      Left = 769
+      Top = 9
+      Width = 75
+      Height = 25
+      Caption = 'Ok'
+      ModalResult = 1
+      TabOrder = 0
+    end
+  end
+  object mmoMsg: TMemo
+    AlignWithMargins = True
+    Left = 8
+    Top = 8
+    Width = 836
+    Height = 362
+    Margins.Left = 8
+    Margins.Top = 8
+    Margins.Right = 8
+    Margins.Bottom = 0
+    Align = alClient
+    BevelInner = bvNone
+    BevelKind = bkFlat
+    BorderStyle = bsNone
+    ReadOnly = True
+    ScrollBars = ssBoth
+    TabOrder = 1
+    WordWrap = False
+  end
+end

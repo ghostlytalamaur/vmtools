@@ -78,11 +78,13 @@ type
   end;
 
   TWorkItemResult = class
+  public
     List: TVMSearchResultsList;
+    Errors: TStringList;
     ErrorCode: TCodeSearchEngineError;
     SearchTime: Cardinal;
 
-    constructor Create(aErrorCode: TCodeSearchEngineError; aList: TVMSearchResultsList);
+    constructor Create(aErrorCode: TCodeSearchEngineError; aList: TVMSearchResultsList; aErrors: TStringList);
     destructor Destroy; override;
   end;
 
@@ -205,7 +207,7 @@ begin
     Engine := TCodeSearchEngine.Create(Progress, ValidPaths);
 
     ErrorCode := Engine.Search(Data.Params, GetIndexSearchPaths, SearchResults);
-    WorkItemRes := TWorkItemResult.Create(ErrorCode, ConvertResults(SearchResults));
+    WorkItemRes := TWorkItemResult.Create(ErrorCode, ConvertResults(SearchResults), SearchResults.AcquireErrors);
     WorkItemRes.SearchTime := Stopwatch.ElapsedMilliseconds;
     Res.AsOwnedObject := WorkItemRes;
     workItem.Result := Res;
@@ -275,6 +277,8 @@ begin
     begin
       Data.DestInfo.Obj.Results.postValue(ResData.List);
       ResData.List := nil;
+      Data.DestInfo.Obj.Errors.postValue(ResData.Errors);
+      ResData.Errors := nil;
     end;
   end;
 end;
@@ -528,16 +532,19 @@ end;
 
 { TWorkItemResult }
 
-constructor TWorkItemResult.Create(aErrorCode: TCodeSearchEngineError; aList: TVMSearchResultsList);
+constructor TWorkItemResult.Create(aErrorCode: TCodeSearchEngineError; aList: TVMSearchResultsList;
+    aErrors: TStringList);
 begin
   inherited Create;
   ErrorCode := aErrorCode;
   List := aList;
+  Errors := aErrors;
 end;
 
 destructor TWorkItemResult.Destroy;
 begin
   FreeAndNil(List);
+  FreeAndNil(Errors);
   inherited;
 end;
 

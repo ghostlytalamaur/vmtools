@@ -5,7 +5,7 @@ unit search_types;
 interface
 
 uses
-  vmsys, generics.collections, observer;
+  vmsys, generics.collections, observer, classes;
 
 type
   TVMSearchResultsItem = class(TObject)
@@ -62,6 +62,7 @@ type
     FResults: IObservableData<TVMSearchResultsList>;
     FStatus: IObservableData<TSearchStatusCode>;
     FStatusText: IObservableData<string>;
+    FErrors: IObservableData<TStringList>;
     FSearchId: Int64;
 
     function GetResults: IObservableData<TVMSearchResultsList>;
@@ -75,6 +76,7 @@ type
     property Status: IObservableData<TSearchStatusCode> read FStatus;
     property StatusText: IObservableData<string> read FStatusText;
     property SearchId: Int64 read FSearchId write FSearchId;
+    property Errors: IObservableData<TStringList> read FErrors;
   end;
 
 implementation
@@ -166,6 +168,11 @@ begin
   FStatusText := TObservableData<string>.Create;
   FStatus := TObservableData<TSearchStatusCode>.Create;
   FStatus.SetValue(ssc_Unknown);
+  FErrors := TObservableData<TStringList>.Create(
+      procedure (var Value: TStringList)
+      begin
+        FreeAndNil(Value);
+      end);
 end;
 
 destructor TSearchInfo.Destroy;

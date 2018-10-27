@@ -81,6 +81,30 @@ type
     function DoGetEnumerator: IEnumerator<V>; override;
   end;
 
+  TEnumeratorWrapper<T> = class(TEnumeratorImpl<T>)
+  private
+    FEnumerable: TEnumerable<T>;
+    FEnumerator: TEnumerator<T>;
+    FOwnEnumerator: Boolean;
+  protected
+    function DoMoveNext: Boolean; override;
+    function DoGetCurrent: T; override;
+    procedure DoReset; override;
+  public
+    constructor Create(aEnumerable: TEnumerable<T>); overload;
+    constructor Create(aEnumerator: TEnumerator<T>; aOwnEnumerator: Boolean); overload;
+    destructor Destroy; override;
+  end;
+
+  TEnumerableWrapper<T> = class(TEnumerableImpl<T>)
+  private
+    FEnumerable: TEnumerable<T>;
+  protected
+    function DoGetEnumerator: IEnumerator<T>; override;
+  public
+    constructor Create(aEnumerable: TEnumerable<T>);
+  end;
+
   TCollectionsUtils = record
   public
     class function FirstThat<T>(aEnumerable: TEnumerable<T>; aPredicate: TPredicate<T>): T; static;
@@ -201,6 +225,68 @@ begin
       if aPredicate(Item) then
         Exit(Item);
   Result := Default(T);
+end;
+
+{ TEnumeratorWrapper<T> }
+
+constructor TEnumeratorWrapper<T>.Create(aEnumerable: TEnumerable<T>);
+begin
+  inherited Create;
+  FEnumerable := aEnumerable;
+  Reset;
+end;
+
+constructor TEnumeratorWrapper<T>.Create(aEnumerator: TEnumerator<T>; aOwnEnumerator: Boolean);
+begin
+  inherited Create;
+  FEnumerator := aEnumerator;
+  FOwnEnumerator := aOwnEnumerator;
+end;
+
+destructor TEnumeratorWrapper<T>.Destroy;
+begin
+  if FOwnEnumerator then
+    FreeAndNil(FEnumerator);
+  inherited;
+end;
+
+function TEnumeratorWrapper<T>.DoGetCurrent: T;
+begin
+  if FEnumerator <> nil then
+    Result := FEnumerator.Current
+  else
+    Result := Default(T);
+end;
+
+function TEnumeratorWrapper<T>.DoMoveNext: Boolean;
+begin
+  Result := (FEnumerator <> nil) and FEnumerator.MoveNext;
+end;
+
+procedure TEnumeratorWrapper<T>.DoReset;
+begin
+  inherited;
+  if FOwnEnumerator then
+    FreeAndNil(FEnumerator);
+  FEnumerator := nil;
+  if FEnumerable <> nil then
+  begin
+    FEnumerator := FEnumerable.GetEnumerator;
+    FOwnEnumerator := True;
+  end;
+end;
+
+{ TEnumerableWrapper<T> }
+
+constructor TEnumerableWrapper<T>.Create(aEnumerable: TEnumerable<T>);
+begin
+  inherited Create;
+  FEnumerable := aEnumerable;
+end;
+
+function TEnumerableWrapper<T>.DoGetEnumerator: IEnumerator<T>;
+begin
+  Result := TEnumeratorWrapper<T>.Create(FEnumerable);
 end;
 
 end.

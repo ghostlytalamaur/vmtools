@@ -11,7 +11,7 @@ object SearchResultFrame: TSearchResultFrame
     Left = 0
     Top = 20
     Width = 663
-    Height = 302
+    Height = 301
     Align = alClient
     BorderStyle = bsNone
     ClipboardFormats.Strings = (
@@ -44,6 +44,7 @@ object SearchResultFrame: TSearchResultFrame
     OnGetText = vstResultsGetText
     OnInitNode = vstResultsInitNode
     OnNodeHeightTracking = vstResultsNodeHeightTracking
+    ExplicitHeight = 302
     Columns = <
       item
         Position = 0
@@ -94,15 +95,53 @@ object SearchResultFrame: TSearchResultFrame
     TabPosition = tpTop
     OnChange = tbcTabsChange
   end
-  object StatusBar1: TStatusBar
+  object pnlStatus: TFlowPanel
     Left = 0
-    Top = 322
+    Top = 321
     Width = 663
-    Height = 19
-    Panels = <
-      item
-        Width = 200
-      end>
+    Height = 20
+    Align = alBottom
+    BevelOuter = bvNone
+    TabOrder = 2
+    object btnShowErrors: TSpeedButton
+      AlignWithMargins = True
+      Left = 8
+      Top = 2
+      Width = 93
+      Height = 16
+      Margins.Left = 8
+      Margins.Top = 2
+      Margins.Right = 8
+      Margins.Bottom = 2
+      Caption = 'Show errors...'
+      Visible = False
+      OnClick = btnShowErrorsClick
+    end
+    object btnCancel: TSpeedButton
+      AlignWithMargins = True
+      Left = 117
+      Top = 2
+      Width = 93
+      Height = 16
+      Margins.Left = 8
+      Margins.Top = 2
+      Margins.Right = 8
+      Margins.Bottom = 2
+      Caption = '&Cancel'
+      Visible = False
+      OnClick = btnCancelClick
+    end
+    object lblStatus: TLabel
+      AlignWithMargins = True
+      Left = 226
+      Top = 3
+      Width = 31
+      Height = 13
+      Margins.Left = 8
+      Margins.Right = 8
+      Margins.Bottom = 0
+      Caption = 'Status'
+    end
   end
   object pmTabs: TPopupMenu
     Left = 24
@@ -124,13 +163,6 @@ object SearchResultFrame: TSearchResultFrame
     OnPopup = pmTreeViewPopup
     Left = 160
     Top = 64
-    object miCancellCurrent: TMenuItem
-      Caption = 'Cancell'
-      OnClick = miCancellCurrentClick
-    end
-    object N1: TMenuItem
-      Caption = '-'
-    end
     object miShowHeader: TMenuItem
       Caption = 'Show Header'
       OnClick = miShowHeaderClick
