@@ -29,7 +29,7 @@ type
       ofht_Filtering);
   TBaseOpenFileHandler = class(TExtObject)
   private
-    FPathsTrie: TTST<TFilePathRec>;
+    FPathsTrie: TDictionary<string, TFilePathRec>;
     FCritSection: TOmniCS;
     FWorker: IOmniBackgroundWorker;
     FStatus: IObservableData<TOpenFileHandlerStatus>;
@@ -38,7 +38,7 @@ type
 
     function ValidateFileList: Boolean;
 
-    function GetFilePaths(aWorkItem: IOmniWorkItem) : TTST<TFilePathRec>;
+    function GetFilePaths(aWorkItem: IOmniWorkItem) : TDictionary<string, TFilePathRec>;
     function GetFilteredPaths(const aFilter: string; aWorkItem: IOmniWorkItem): TList<string>;
     procedure FilterPaths;
 
@@ -73,11 +73,11 @@ uses
 
 type
   TRefreshWorkItemResult = class
-    Trie: TTST<TFilePathRec>;
+    Trie: TDictionary<string, TFilePathRec>;
 
-    constructor Create(aTrie: TTST<TFilePathRec>);
+    constructor Create(aTrie: TDictionary<string, TFilePathRec>);
     destructor Destroy; override;
-    function AcquireTrie: TTST<TFilePathRec>;
+    function AcquireTrie: TDictionary<string, TFilePathRec>;
   end;
 
   TFilterWorkItemResult = class
@@ -168,7 +168,7 @@ begin
   inherited;
 end;
 
-function TBaseOpenFileHandler.GetFilePaths(aWorkItem: IOmniWorkItem): TTST<TFilePathRec>;
+function TBaseOpenFileHandler.GetFilePaths(aWorkItem: IOmniWorkItem): TDictionary<string, TFilePathRec>;
 var
   FilePathsSet: ISet<string>;
   FileMasks: TArray<string>;
@@ -220,8 +220,8 @@ begin
   begin
     Rec := TFilePathRec.Create(FilePath);
     if Result = nil then
-      Result := TTST<TFilePathRec>.Create;
-    Result.PutValue(TStrUtils.Normalize(Rec.FileName), Rec);
+      Result := TDictionary<string, TFilePathRec>.Create(10000);
+    Result.AddOrSetValue(TStrUtils.Normalize(Rec.FileName), Rec);
     Inc(Size, (Length(FilePath) + Length(TStrUtils.Normalize(Rec.FileName))) * SizeOf(FilePath[1]));
     if aWorkItem.CancellationToken.IsSignalled then
     begin
@@ -275,8 +275,9 @@ var
   Ratio: Single;
   FilterNGrams: TArray<string>;
   P: TPair<string, TFilePathRec>;
-  FuzzyRegExp, FilleRegExp, NormKeyRegExp: TPerlRegEx;
+  FuzzyRegExp, FilleRegExp: TPerlRegEx;
   Comparer: IComparer<string>;
+  NormFilter: string;
 begin
   Result := nil;
   if (aFilter = '') or (Length(aFilter) < 2) then
@@ -291,31 +292,27 @@ begin
   end;
 
   FilleRegExp := nil;
-  NormKeyRegExp := nil;
   FuzzyRegExp := nil;
   Coefs := nil;
   try
     Coefs := TDictionary<string, Single>.Create;
     FilterNGrams := TStrUtils.NGrams(TStrUtils.Normalize(aFilter), cstTokenLen);
     FilleRegExp := CreateRegEx(aFilter);
-
+    NormFilter := TStrUtils.Normalize(aFilter);
     if not TStrUtils.HasChars(aFilter, ['/', '\', ':', '*', '?', '<', '>', '|']) then
     begin
-      NormKeyRegExp := CreateRegEx(TStrUtils.Normalize(aFilter));
       FuzzyRegExp := CreateRegEx(BuildRegExp(aFilter));
     end;
 
     FCritSection.Acquire;
     try
-      for P in FPathsTrie.Pairs do
+      for P in FPathsTrie do
       begin
         if aWorkItem.CancellationToken.IsSignalled then
           Exit;
 
         try
-          if NormKeyRegExp <> nil then
-            NormKeyRegExp.Subject := P.Key;
-          if (NormKeyRegExp = nil) or not NormKeyRegExp.Match then
+          if Pos(NormFilter, TStrUtils.Normalize(P.Key)) <= 0 then
           begin
             FilleRegExp.Subject := P.Value.FileName;
             if not FilleRegExp.Match then
@@ -354,7 +351,6 @@ begin
   finally
     FreeAndNil(Coefs);
     FreeAndNil(FilleRegExp);
-    FreeAndNil(NormKeyRegExp);
     FreeAndNil(FuzzyRegExp);
   end;
 end;
@@ -437,13 +433,13 @@ end;
 
 { TRefreshWorkItemResult }
 
-function TRefreshWorkItemResult.AcquireTrie: TTST<TFilePathRec>;
+function TRefreshWorkItemResult.AcquireTrie: TDictionary<string, TFilePathRec>;
 begin
   Result := Trie;
   Trie := nil;
 end;
 
-constructor TRefreshWorkItemResult.Create(aTrie: TTST<TFilePathRec>);
+constructor TRefreshWorkItemResult.Create(aTrie: TDictionary<string, TFilePathRec>);
 begin
   inherited Create;
   Trie := aTrie;

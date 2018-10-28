@@ -257,7 +257,6 @@ begin
   end;
 end;
 
-type Void = record end;
 function TCodeSearchEngine.DoSearchMultiThread2(aParams: TCodeSearchQueryParams; aIndexFile: string;
     out Results: TSearchResults): TCodeSearchEngineError;
 var
