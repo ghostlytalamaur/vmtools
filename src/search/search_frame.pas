@@ -77,6 +77,7 @@ type
     procedure vstResultsNodeHeightTracking(Sender: TBaseVirtualTree; Node: PVirtualNode; Column: TColumnIndex;
       Shift: TShiftState; var TrackPoint: TPoint; P: TPoint; var Allowed: Boolean);
     procedure vstResultsChange(Sender: TBaseVirtualTree; Node: PVirtualNode);
+    procedure vstResultsStateChange(Sender: TBaseVirtualTree; Enter, Leave: TVirtualTreeStates);
   private
     { Private declarations }
     FHandler: IObjectHolder<TSearchHandler>;
@@ -384,11 +385,13 @@ begin
     CurInfo.Info.Results.RegisterObserver(FResultsObserver);
     CurInfo.Info.StatusText.RegisterObserver(FStatusTextObserver);
     CurInfo.Info.Errors.RegisterObserver(FErrorsObserver);
+    btnCancel.Visible := CurInfo.Info.Status.getValue in [ssc_Queued, ssc_Searching];
   end
   else
   begin
     lblStatus.Visible := False;
     btnShowErrors.Visible := False;
+    btnCancel.Visible := False;
   end;
 
   UpdateResults;
@@ -439,19 +442,48 @@ end;
 
 procedure TSearchResultFrame.vstResultsCompareNodes(Sender: TBaseVirtualTree; Node1, Node2: PVirtualNode;
   Column: TColumnIndex; var Result: Integer);
+
+  procedure AppendOrder(var Order: TArray<Integer>; var Idx: Integer; aColumn: Integer);
+  begin
+    if Column <> aColumn then
+    begin
+      if Idx >= Length(Order) then
+        SetLength(Order, Idx + 1); // for safety
+      Order[Idx] := aColumn;
+      Inc(Idx);
+    end;
+  end;
+
 var
   Item1, Item2: TVMSearchResultsItem;
+  SortOrder: TArray<Integer>;
+  Col, I: Integer;
 begin
   Item1 := vstResults.GetNodeData<TVMSearchResultsItem>(Node1);
   Item2 := vstResults.GetNodeData<TVMSearchResultsItem>(Node2);
+  Result := 0;
   if (Item1 = nil) or (Item2 = nil) then
     Exit;
 
-  case Column of
-    cstColFile: Result := CompareText(Item1.FileName, Item2.FileName);
-    cstColText: Result := CompareText(Item1.Text, Item2.Text);
-    cstColLine: Result := Item1.Line - Item2.Line;
-    cstColRating: Result := Item1.Rating - Item2.Rating;
+  SetLength(SortOrder, 4);
+  SortOrder[0] := Column;
+  I := 1;
+  AppendOrder(SortOrder, I, cstColRating);
+  AppendOrder(SortOrder, I, cstColPath);
+  AppendOrder(SortOrder, I, cstColFile);
+  AppendOrder(SortOrder, I, cstColLine);
+  AppendOrder(SortOrder, I, cstColText);
+  for Col in SortOrder do
+  begin
+    case Col of
+      cstColFile: Result := CompareText(Item1.FileName, Item2.FileName);
+      cstColPath: Result := CompareText(Item1.FilePath, Item2.FilePath);
+      cstColText: Result := CompareText(Item1.Text, Item2.Text);
+      cstColLine: Result := Item1.Line - Item2.Line;
+      cstColRating: Result := Item1.Rating - Item2.Rating;
+    end;
+    if Result <> 0 then
+      Exit;
   end;
 end;
 
@@ -611,6 +643,10 @@ begin
   SetCurInfo(NewTab);
 end;
 
+procedure TSearchResultFrame.vstResultsStateChange(Sender: TBaseVirtualTree; Enter, Leave: TVirtualTreeStates);
+begin
+end;
+
 { TResulsInfoData }
 
 constructor TResulsInfoData.Create(aSelIdx: Integer; aInfo: TSearchInfo);
@@ -724,7 +760,6 @@ var
   TabIndex: Integer;
   Info: TSearchInfo;
 begin
-  FFrame.btnCancel.Visible := aData in [ssc_Queued, ssc_Searching];
   if not FFrame.FHandler.IsAlive then
     Exit;
 
@@ -737,6 +772,9 @@ begin
   TabIndex := FFrame.TabIndexBySearchInfo(Info);
   if TabIndex < 0 then
     Exit;
+
+  if FFrame.tbcTabs.TabIndex = TabIndex then
+    FFrame.btnCancel.Visible := aData in [ssc_Queued, ssc_Searching];
 
   if Info <> nil then
     FFrame.tbcTabs.Tabs[TabIndex] := GetTabText(Info);

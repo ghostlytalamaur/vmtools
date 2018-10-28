@@ -44,6 +44,7 @@ object SearchResultFrame: TSearchResultFrame
     OnGetText = vstResultsGetText
     OnInitNode = vstResultsInitNode
     OnNodeHeightTracking = vstResultsNodeHeightTracking
+    OnStateChange = vstResultsStateChange
     Columns = <
       item
         Position = 0
