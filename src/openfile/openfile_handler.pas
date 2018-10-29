@@ -8,7 +8,7 @@ interface
 uses
   vmsys, classes, observer, otlsync, otlcontainers, otleventmonitor, otltaskcontrol, otlcomm, otltask,
   otlcommon, generics.collections, base_params, inifiles, windows,
-  collections.tst, OtlParallel;
+  collections.tst, OtlParallel, collections.maps;
 
 type
   TFilePathRec = record
@@ -35,6 +35,7 @@ type
     FStatus: IObservableData<TOpenFileHandlerStatus>;
     FFilteredList: IObservableData<TList<string>>;
     FFilter: string;
+    FPriority: IMap<string, Integer>;
 
     function ValidateFileList: Boolean;
 
@@ -49,6 +50,12 @@ type
     procedure PerformFiltering(const workItem: IOmniWorkItem);
     procedure OnFilteringDone(const Sender: IOmniBackgroundWorker;
         const workItem: IOmniWorkItem);
+
+    class procedure LoadPriority(aPriority: IMap<string, Integer>);
+    class procedure StorePriority(aPriority: IMap<string, Integer>);
+    function GetPriority: IMap<string, Integer>;
+
+    property Priority: IMap<string, Integer> read GetPriority;
   protected
     function GetDirPaths: IEnumerable<string>; virtual; abstract;
     function GetFileMasks: TArray<string>; virtual;
@@ -131,6 +138,58 @@ begin
   ValidateFileList;
 end;
 
+class procedure TBaseOpenFileHandler.LoadPriority(aPriority: IMap<string, Integer>);
+var
+  Ini: TCustomIniFile;
+  Priority, FilesCount, I: Integer;
+  FilePath: string;
+begin
+  if aPriority = nil then
+    Exit;
+
+  Ini := TIniFile.Create(IncludeTrailingPathDelimiter(ExtractFilePath(GetModuleName(HInstance))) + 'filespriority.ini');
+  try
+    aPriority.Clear;
+    FilesCount := Ini.ReadInteger('OpenFilePriority', 'FilesCount', 0);
+    for I := 0 to FilesCount - 1 do
+    begin
+      FilePath  := Ini.ReadString('OpenFilePriority', 'File' + IntToStr(I), '');
+      Priority := Ini.ReadInteger('OpenFilePriority', 'Priority' + IntToStr(I), 0);
+      if (Priority = 0) or (FilePath = '') or not FileExists(FilePath) then
+        Continue;
+
+      aPriority[FilePath] := Priority;
+    end;
+  finally
+    FreeAndNil(Ini);
+  end;
+end;
+
+class procedure TBaseOpenFileHandler.StorePriority(aPriority: IMap<string, Integer>);
+var
+  P: TPair<string, Integer>;
+  Ini: TCustomIniFile;
+  I: Integer;
+begin
+  if aPriority = nil then
+    Exit;
+
+  Ini := TIniFile.Create(IncludeTrailingPathDelimiter(ExtractFilePath(GetModuleName(HInstance))) + 'filespriority.ini');
+  try
+    Ini.EraseSection('OpenFilePriority');
+    Ini.WriteInteger('OpenFilePriority', 'FilesCount', aPriority.Count);
+    I := 0;
+    for P in aPriority do
+    begin
+      Ini.WriteString('OpenFilePriority', 'File' + IntToStr(I), P.Key);
+      Ini.WriteInteger('OpenFilePriority', 'Priority' + IntToStr(I), P.Value);
+      Inc(I);
+    end;
+  finally
+    FreeAndNil(Ini);
+  end;
+end;
+
 procedure TBaseOpenFileHandler.PerformRefresh(const aWorkItem: IOmniWorkItem);
 var
   Res: TOmniValue;
@@ -187,10 +246,8 @@ var
   DirPaths: IEnumerable<string>;
   Processed: ISet<string>;
   Rec: TFilePathRec;
-  Size: Int64;
 begin
   Result := nil;
-  Size:= 0;
   Processed := THashSet<string>.Create(10000);
   FilePathsSet := THashSet<string>.Create(10000);
   DirPaths := GetDirPaths;
@@ -222,7 +279,6 @@ begin
     if Result = nil then
       Result := TDictionary<string, TFilePathRec>.Create(10000);
     Result.AddOrSetValue(TStrUtils.Normalize(Rec.FileName), Rec);
-    Inc(Size, (Length(FilePath) + Length(TStrUtils.Normalize(Rec.FileName))) * SizeOf(FilePath[1]));
     if aWorkItem.CancellationToken.IsSignalled then
     begin
       FreeAndNil(Result);
@@ -341,7 +397,9 @@ begin
     begin
       Comparer := TDelegatedComparer<string>.Create(function(const Left, Right: string): Integer
         begin
-          Result := Compare(Coefs[Left], Coefs[Right]);
+          Result := Priority[Left] - Priority[Right];
+          if Result = 0 then
+            Result := Compare(Coefs[Left], Coefs[Right]);
           if Result = 0 then
             Result := CompareText(Left, Right);
           Result := -Result;
@@ -353,6 +411,16 @@ begin
     FreeAndNil(FilleRegExp);
     FreeAndNil(FuzzyRegExp);
   end;
+end;
+
+function TBaseOpenFileHandler.GetPriority: IMap<string, Integer>;
+begin
+  if FPriority = nil then
+  begin
+    FPriority := THashMap<string, Integer>.Create;
+    LoadPriority(FPriority);
+  end;
+  Result := FPriority;
 end;
 
 procedure TBaseOpenFileHandler.FilterPaths;
@@ -387,6 +455,8 @@ end;
 
 procedure TBaseOpenFileHandler.OpenFile(const aFilePath: string);
 begin
+  Priority[aFilePath] := Priority[aFilePath] + 1;
+  StorePriority(Priority);
 end;
 
 function TBaseOpenFileHandler.ValidateFileList: Boolean;

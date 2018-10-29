@@ -3,7 +3,7 @@ unit collections.common;
 interface
 
 uses
-  generics.collections, sysutils;
+  vmsys, generics.collections, sysutils;
 
 type
   TGenericEnumerator = class(TInterfacedObject, IEnumerator)
@@ -83,7 +83,7 @@ type
 
   TEnumeratorWrapper<T> = class(TEnumeratorImpl<T>)
   private
-    FEnumerable: TEnumerable<T>;
+    FEnumerable: IObjectHolder<TEnumerable<T>>;
     FEnumerator: TEnumerator<T>;
     FOwnEnumerator: Boolean;
   protected
@@ -92,17 +92,19 @@ type
     procedure DoReset; override;
   public
     constructor Create(aEnumerable: TEnumerable<T>); overload;
+    constructor Create(aEnumerable: IObjectHolder<TEnumerable<T>>); overload;
     constructor Create(aEnumerator: TEnumerator<T>; aOwnEnumerator: Boolean); overload;
     destructor Destroy; override;
   end;
 
   TEnumerableWrapper<T> = class(TEnumerableImpl<T>)
   private
-    FEnumerable: TEnumerable<T>;
+    FEnumerable: IObjectHolder<TEnumerable<T>>;
   protected
     function DoGetEnumerator: IEnumerator<T>; override;
   public
-    constructor Create(aEnumerable: TEnumerable<T>);
+    constructor Create(aEnumerable: TEnumerable<T>); overload;
+    constructor Create(aEnumerable: IObjectHolder<TEnumerable<T>>); overload;
   end;
 
   TCollectionsUtils = record
@@ -231,6 +233,11 @@ end;
 
 constructor TEnumeratorWrapper<T>.Create(aEnumerable: TEnumerable<T>);
 begin
+  Create(TObjectHolder<TEnumerable<T>>.Create(aEnumerable, False));
+end;
+
+constructor TEnumeratorWrapper<T>.Create(aEnumerable: IObjectHolder<TEnumerable<T>>);
+begin
   inherited Create;
   FEnumerable := aEnumerable;
   Reset;
@@ -269,9 +276,9 @@ begin
   if FOwnEnumerator then
     FreeAndNil(FEnumerator);
   FEnumerator := nil;
-  if FEnumerable <> nil then
+  if (FEnumerable <> nil) and FEnumerable.IsAlive then
   begin
-    FEnumerator := FEnumerable.GetEnumerator;
+    FEnumerator := FEnumerable.Obj.GetEnumerator;
     FOwnEnumerator := True;
   end;
 end;
@@ -280,7 +287,11 @@ end;
 
 constructor TEnumerableWrapper<T>.Create(aEnumerable: TEnumerable<T>);
 begin
-  inherited Create;
+  Create(TObjectHolder<TEnumerable<T>>.Create(aEnumerable, False));
+end;
+
+constructor TEnumerableWrapper<T>.Create(aEnumerable: IObjectHolder<TEnumerable<T>>);
+begin
   FEnumerable := aEnumerable;
 end;
 

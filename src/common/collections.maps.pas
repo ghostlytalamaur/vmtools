@@ -5,9 +5,57 @@ interface
 uses
   generics.collections,
   generics.defaults,
-  collections.rbtree;
+  collections.rbtree,
+  collections.common,
+  vmsys;
 
 type
+  IMap<K, V> = interface(IEnumerable<TPair<K, V>>)
+    function GetCount: Integer;
+    function GetItems(aKey: K): V;
+    procedure SetItems(aKey: K; aValue: V);
+
+    function GetKeys: IEnumerable<K>;
+    function GetValues: IEnumerable<V>;
+
+    function ContainsKey(const aKey: K): Boolean;
+    procedure Add(const aKey: K; const aValue: V);
+    procedure Remove(const aKey: K);
+    procedure Clear;
+
+    property Keys: IEnumerable<K> read GetKeys;
+    property Values: IEnumerable<V> read GetValues;
+    property Items[aKey: K]: V read GetItems write SetItems; default;
+    property Count: Integer read GetCount;
+  end;
+
+  THashMap<K, V> = class(TEnumerableImpl<TPair<K, V>>, IMap<K, V>)
+  private
+    FDict: IObjectHolder<TDictionary<K,V>>;
+    FKeysEnumerable: IEnumerable<K>;
+    FValuesEnumerable: IEnumerable<V>;
+
+    function GetCount: Integer;
+    function GetItems(aKey: K): V;
+    procedure SetItems(aKey: K; aValue: V);
+
+    function GetKeys: IEnumerable<K>;
+    function GetValues: IEnumerable<V>;
+  protected
+    function DoGetEnumerator: IEnumerator<TPair<K, V>>; override;
+  public
+    constructor Create;
+    destructor Destroy; override;
+    function ContainsKey(const aKey: K): Boolean;
+    procedure Add(const aKey: K; const aValue: V);
+    procedure Remove(const aKey: K);
+    procedure Clear;
+
+    property Keys: IEnumerable<K> read GetKeys;
+    property Values: IEnumerable<V> read GetValues;
+    property Items[aKey: K]: V read GetItems write SetItems; default;
+  end;
+
   TMap<TKey, TValue> = class(TLLRBTree<TKey, TPair<TKey, TValue>>)
   public
     type
@@ -109,5 +157,84 @@ begin
     Result := nil;
 end;
 
+
+{ THashMap<K, V> }
+
+procedure THashMap<K, V>.Add(const aKey: K; const aValue: V);
+begin
+  FDict.Obj.AddOrSetValue(aKey, aValue);
+end;
+
+procedure THashMap<K, V>.Clear;
+begin
+  FDict.Obj.Clear;
+end;
+
+function THashMap<K, V>.ContainsKey(const aKey: K): Boolean;
+begin
+  Result := FDict.Obj.ContainsKey(aKey);
+end;
+
+constructor THashMap<K, V>.Create;
+begin
+  inherited Create;
+  FDict := TObjectHolder<TDictionary<K,V>>.Create(TDictionary<K,V>.Create, True);
+end;
+
+destructor THashMap<K, V>.Destroy;
+begin
+  inherited;
+end;
+
+function THashMap<K, V>.DoGetEnumerator: IEnumerator<TPair<K, V>>;
+begin
+  Result := TEnumeratorWrapper<TPair<K, V>>.Create(FDict.Obj.GetEnumerator, True);
+end;
+
+function THashMap<K, V>.GetCount: Integer;
+begin
+  Result := FDict.Obj.Count;
+end;
+
+function THashMap<K, V>.GetItems(aKey: K): V;
+begin
+  if not FDict.Obj.TryGetValue(aKey, Result) then
+    Result := Default(V);
+end;
+
+function THashMap<K, V>.GetKeys: IEnumerable<K>;
+begin
+  if FKeysEnumerable = nil then
+    FKeysEnumerable := TEnumerableWrapper<K>.Create(
+      TMappingObjectHolder<TDictionary<K, V>, TEnumerable<K>>.Create(FDict,
+      function (aDict: TDictionary<K, V>): TEnumerable<K>
+      begin
+        Result := aDict.Keys;
+      end));
+  Result := FKeysEnumerable;
+end;
+
+
+function THashMap<K, V>.GetValues: IEnumerable<V>;
+begin
+  if FValuesEnumerable = nil then
+    FValuesEnumerable := TEnumerableWrapper<V>.Create(
+      TMappingObjectHolder<TDictionary<K, V>, TEnumerable<V>>.Create(FDict,
+      function (aDict: TDictionary<K, V>): TEnumerable<V>
+      begin
+        Result := aDict.Values;
+      end));
+  Result := FValuesEnumerable;
+end;
+
+procedure THashMap<K, V>.Remove(const aKey: K);
+begin
+  FDict.Obj.Remove(aKey);
+end;
+
+procedure THashMap<K, V>.SetItems(aKey: K; aValue: V);
+begin
+  FDict.Obj.AddOrSetValue(aKey, aValue);
+end;
 
 end.

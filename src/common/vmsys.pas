@@ -73,6 +73,14 @@ type
     destructor Destroy; override;
   end;
 
+  TMappingObjectHolder<T: class; R: class> = class(TObjectHolder<R>)
+  private
+    FFrom: IObjectHolder<T>;
+    FMapping: TFunc<T, R>;
+  public
+    constructor Create(aFrom: IObjectHolder<T>; aMapping: TFunc<T, R>);
+  end;
+
   EBaseInterfacedObjectException = class(Exception);
 
 
@@ -305,6 +313,23 @@ end;
 function TObjectHolder<T>.IsAlive: Boolean;
 begin
   Result := FIsActiveFlag > 0;
+end;
+
+{ TMappingObjectHolder<T, R> }
+
+constructor TMappingObjectHolder<T, R>.Create(aFrom: IObjectHolder<T>; aMapping: TFunc<T, R>);
+var
+  O: TObject;
+begin
+  if (aFrom <> nil) and aFrom.IsAlive and Assigned(aMapping) then
+    O := aMapping(aFrom.Obj)
+  else
+    O := nil;
+
+  inherited Create(O, False);
+
+  FFrom := aFrom;
+  FMapping := aMapping;
 end;
 
 end.
