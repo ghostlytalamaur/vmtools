@@ -32,8 +32,8 @@ type
     FPathsTrie: TDictionary<string, TFilePathRec>;
     FCritSection: TOmniCS;
     FWorker: IOmniBackgroundWorker;
-    FStatus: IObservableData<TOpenFileHandlerStatus>;
-    FFilteredList: IObservableData<TList<string>>;
+    FStatus: IMutableData<TOpenFileHandlerStatus>;
+    FFilteredList: IMutableData<TList<string>>;
     FFilter: string;
     FPriority: IMap<string, Integer>;
 
@@ -54,12 +54,14 @@ type
     class procedure LoadPriority(aPriority: IMap<string, Integer>);
     class procedure StorePriority(aPriority: IMap<string, Integer>);
     function GetPriority: IMap<string, Integer>;
+    function GetStatus: IObservableData<TOpenFileHandlerStatus>;
+    function GetFilteredList: IObservableData<TList<string>>;
 
     property Priority: IMap<string, Integer> read GetPriority;
   protected
     function GetDirPaths: IEnumerable<string>; virtual; abstract;
     function GetFileMasks: TArray<string>; virtual;
-    function GetAdditionFileList: TArray<string>; virtual;
+    function GetAdditionFileList: IEnumerable<string>; virtual;
   public
     constructor Create;
     destructor Destroy; override;
@@ -67,8 +69,8 @@ type
     procedure OpenFile(const aFilePath: string); virtual;
 
     procedure SetFilter(const aFilter: string);
-    property Status: IObservableData<TOpenFileHandlerStatus> read FStatus;
-    property FilteredPaths: IObservableData<TList<string>> read FFilteredList;
+    property Status: IObservableData<TOpenFileHandlerStatus> read GetStatus;
+    property FilteredPaths: IObservableData<TList<string>> read GetFilteredList;
   end;
 
 implementation
@@ -121,11 +123,11 @@ var
   Res: TOmniValue;
   List: TList<string>;
 begin
-  Status.postValue(ofht_Filtering);
+  FStatus.postValue(ofht_Filtering);
   List := GetFilteredPaths(workItem.Data, workItem);
   Res.AsOwnedObject := TFilterWorkItemResult.Create(List);
   WorkItem.Result := Res;
-  Status.postValue(ofht_Ready);
+  FStatus.postValue(ofht_Ready);
 end;
 
 procedure TBaseOpenFileHandler.OnFilteringDone(const Sender: IOmniBackgroundWorker;
@@ -134,7 +136,7 @@ begin
   if workItem.IsExceptional or workItem.CancellationToken.IsSignalled then
     Exit;
 
-  FilteredPaths.postValue((WorkItem.Result.AsOwnedObject as TFilterWorkItemResult).AcquireList);
+  FFilteredList.postValue((WorkItem.Result.AsOwnedObject as TFilterWorkItemResult).AcquireList);
   ValidateFileList;
 end;
 
@@ -194,9 +196,9 @@ procedure TBaseOpenFileHandler.PerformRefresh(const aWorkItem: IOmniWorkItem);
 var
   Res: TOmniValue;
 begin
-  Status.postValue(ofht_RefreshList);
+  FStatus.postValue(ofht_RefreshList);
   Res.AsOwnedObject := TRefreshWorkItemResult.Create(GetFilePaths(aworkItem));
-  Status.postValue(ofht_Ready);
+  FStatus.postValue(ofht_Ready);
   aWorkItem.Result := Res;
 end;
 
@@ -287,7 +289,7 @@ begin
   end;
 end;
 
-function TBaseOpenFileHandler.GetAdditionFileList: TArray<string>;
+function TBaseOpenFileHandler.GetAdditionFileList: IEnumerable<string>;
 begin
   Result := nil;
 end;
@@ -295,6 +297,11 @@ end;
 function TBaseOpenFileHandler.GetFileMasks: TArray<string>;
 begin
   Result := TArrayUtils.AsArray<string>(['*']);
+end;
+
+function TBaseOpenFileHandler.GetFilteredList: IObservableData<TList<string>>;
+begin
+  Result := FFilteredList;
 end;
 
 function TBaseOpenFileHandler.GetFilteredPaths(const aFilter: string;
@@ -421,6 +428,11 @@ begin
     LoadPriority(FPriority);
   end;
   Result := FPriority;
+end;
+
+function TBaseOpenFileHandler.GetStatus: IObservableData<TOpenFileHandlerStatus>;
+begin
+  Result := FStatus;
 end;
 
 procedure TBaseOpenFileHandler.FilterPaths;

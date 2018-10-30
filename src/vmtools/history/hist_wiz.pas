@@ -49,14 +49,15 @@ type
     FPrevFileName: string;
     FPrevLine: Integer;
     FPrevCol: Integer;
-    FEditLineData: IObservableData<TLineData>;
+    FEditLineData: IMutableData<TLineData>;
 
     procedure OnTimer(aSender: TObject);
+    function GetEditLineData: IObservableData<TLineData>;
   public
     constructor Create;
     destructor Destroy; override;
 
-    property EditLineData: IObservableData<TLineData> read FEditLineData;
+    property EditLineData: IObservableData<TLineData> read GetEditLineData;
   end;
 
   TVMHistoryWizard = class(TVMBaseWizard)
@@ -234,6 +235,11 @@ destructor TEditLineChangedNotifier.Destroy;
 begin
   FreeAndNil(FTimer);
   inherited;
+end;
+
+function TEditLineChangedNotifier.GetEditLineData: IObservableData<TLineData>;
+begin
+  Result := FEditLineData;
 end;
 
 procedure TEditLineChangedNotifier.OnTimer(aSender: TObject);

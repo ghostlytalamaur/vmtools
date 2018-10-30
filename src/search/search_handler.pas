@@ -95,7 +95,7 @@ type
     FTotal: TStack<Integer>;
     FCurrent: TStack<Integer>;
     FInfo: string;
-    FStatusData: IObservableData<string>;
+    FStatusData: IMutableData<string>;
     FSearchInfo: IObjectHolder<TSearchInfo>;
 
     procedure UpdateStatusData;

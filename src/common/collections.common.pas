@@ -3,7 +3,7 @@ unit collections.common;
 interface
 
 uses
-  vmsys, generics.collections, sysutils;
+  vmsys, generics.collections, sysutils, Classes;
 
 type
   TGenericEnumerator = class(TInterfacedObject, IEnumerator)
@@ -81,7 +81,7 @@ type
     function DoGetEnumerator: IEnumerator<V>; override;
   end;
 
-  TEnumeratorWrapper<T> = class(TEnumeratorImpl<T>)
+  TWrapEnumerator<T> = class(TEnumeratorImpl<T>)
   private
     FEnumerable: IObjectHolder<TEnumerable<T>>;
     FEnumerator: TEnumerator<T>;
@@ -97,19 +97,61 @@ type
     destructor Destroy; override;
   end;
 
-  TEnumerableWrapper<T> = class(TEnumerableImpl<T>)
+  TEmptyEnumerator<T> = class(TEnumeratorImpl<T>)
+  protected
+    function DoGetCurrent: T; override;
+    function DoMoveNext: Boolean; override;
+  end;
+
+  TMappingEnumerator<T, R> = class(TEnumeratorImpl<R>)
   private
-    FEnumerable: IObjectHolder<TEnumerable<T>>;
+    FSource: IEnumerable<T>;
+    FMapper: TFunc<T, R>;
+
+    FEnumerator: IEnumerator<T>;
+    FCurrent: R;
+  protected
+    function DoGetCurrent: R; override;
+    function DoMoveNext: Boolean; override;
+    procedure DoReset; override;
+  public
+    constructor Create(aSource: IEnumerable<T>; aMapper: TFunc<T, R>);
+  end;
+
+  TIndexedEnumerator<T> = class(TEnumeratorImpl<T>)
+  public
+    FFromIndex: Integer;
+    FToIndex: Integer;
+    FCurrentIndex: Integer;
+    FCurrent: T;
+    FOnGetItem: TFunc<Integer, T>;
+  protected
+    function DoGetCurrent: T; override;
+    function DoMoveNext: Boolean; override;
+    procedure DoReset; override;
+  public
+    constructor Create(aFromIndex, aToIndex: Integer; aOnGetItem: TFunc<Integer, T>);
+  end;
+
+  TEnumerableFactory<T> = class(TEnumerableImpl<T>)
+  private
+    FFactory: TFunc<IEnumerator<T>>;
   protected
     function DoGetEnumerator: IEnumerator<T>; override;
   public
-    constructor Create(aEnumerable: TEnumerable<T>); overload;
-    constructor Create(aEnumerable: IObjectHolder<TEnumerable<T>>); overload;
+    constructor Create(aFactory: TFunc<IEnumerator<T>>);
   end;
 
   TCollectionsUtils = record
+  private
+    class function WrapGetMethod(aList: TStringList): TFunc<Integer, string>; static;
   public
     class function FirstThat<T>(aEnumerable: TEnumerable<T>; aPredicate: TPredicate<T>): T; static;
+    class function Map<T, R>(aEnumerable: IEnumerable<T>; aMapper: TFunc<T, R>): IEnumerable<R>; static;
+    class function Wrap<T>(aEnumerable: TEnumerable<T>): IEnumerable<T>; overload; static;
+    class function Wrap<T>(aEnumerable: IObjectHolder<TEnumerable<T>>): IEnumerable<T>; overload; static;
+    class function Wrap(aList: TStringList): IEnumerable<string>; overload; static;
+    class function Empty<T>: IEnumerable<T>; static;
   end;
 
 implementation
@@ -218,6 +260,14 @@ end;
 
 { TCollectionsUtils }
 
+class function TCollectionsUtils.Empty<T>: IEnumerable<T>;
+begin
+  Result := TEnumerableFactory<T>.Create(function : IEnumerator<T>
+  begin
+    Result := TEmptyEnumerator<T>.Create;
+  end);
+end;
+
 class function TCollectionsUtils.FirstThat<T>(aEnumerable: TEnumerable<T>; aPredicate: TPredicate<T>): T;
 var
   Item: T;
@@ -229,35 +279,84 @@ begin
   Result := Default(T);
 end;
 
-{ TEnumeratorWrapper<T> }
+class function TCollectionsUtils.Map<T, R>(aEnumerable: IEnumerable<T>; aMapper: TFunc<T, R>): IEnumerable<R>;
+begin
+  if (aEnumerable = nil) or not Assigned(aMapper) then
+  begin
+    Result := Empty<R>;
+    Exit;
+  end;
 
-constructor TEnumeratorWrapper<T>.Create(aEnumerable: TEnumerable<T>);
+  Result := TEnumerableFactory<R>.Create(function : IEnumerator<R>
+  begin
+    Result := TMappingEnumerator<T,R>.Create(aEnumerable, aMapper);
+  end);
+end;
+
+class function TCollectionsUtils.Wrap<T>(aEnumerable: TEnumerable<T>): IEnumerable<T>;
+begin
+  Result := Wrap<T>(TObjectHolder<TEnumerable<T>>.Create(aEnumerable, False));
+end;
+
+class function TCollectionsUtils.Wrap<T>(aEnumerable: IObjectHolder<TEnumerable<T>>): IEnumerable<T>;
+begin
+  Result := TEnumerableFactory<T>.Create(function : IEnumerator<T>
+  begin
+    Result := TWrapEnumerator<T>.Create(aEnumerable);
+  end);
+end;
+
+class function TCollectionsUtils.WrapGetMethod(aList: TStringList): TFunc<Integer, string>;
+begin
+  Result := function (aIndex: Integer): string
+  begin
+    if aList <> nil then
+      Result := aList[aIndex]
+    else
+      Result := '';
+  end;
+end;
+
+class function TCollectionsUtils.Wrap(aList: TStringList): IEnumerable<string>;
+begin
+  if aList <> nil then
+    Result := TEnumerableFactory<string>.Create(function : IEnumerator<string>
+    begin
+      Result := TIndexedEnumerator<string>.Create(0, aList.Count - 1, WrapGetMethod(aList));
+    end)
+  else
+    Result := Empty<string>;
+end;
+
+{ TWrapEnumerator<T> }
+
+constructor TWrapEnumerator<T>.Create(aEnumerable: TEnumerable<T>);
 begin
   Create(TObjectHolder<TEnumerable<T>>.Create(aEnumerable, False));
 end;
 
-constructor TEnumeratorWrapper<T>.Create(aEnumerable: IObjectHolder<TEnumerable<T>>);
+constructor TWrapEnumerator<T>.Create(aEnumerable: IObjectHolder<TEnumerable<T>>);
 begin
   inherited Create;
   FEnumerable := aEnumerable;
   Reset;
 end;
 
-constructor TEnumeratorWrapper<T>.Create(aEnumerator: TEnumerator<T>; aOwnEnumerator: Boolean);
+constructor TWrapEnumerator<T>.Create(aEnumerator: TEnumerator<T>; aOwnEnumerator: Boolean);
 begin
   inherited Create;
   FEnumerator := aEnumerator;
   FOwnEnumerator := aOwnEnumerator;
 end;
 
-destructor TEnumeratorWrapper<T>.Destroy;
+destructor TWrapEnumerator<T>.Destroy;
 begin
   if FOwnEnumerator then
     FreeAndNil(FEnumerator);
   inherited;
 end;
 
-function TEnumeratorWrapper<T>.DoGetCurrent: T;
+function TWrapEnumerator<T>.DoGetCurrent: T;
 begin
   if FEnumerator <> nil then
     Result := FEnumerator.Current
@@ -265,12 +364,12 @@ begin
     Result := Default(T);
 end;
 
-function TEnumeratorWrapper<T>.DoMoveNext: Boolean;
+function TWrapEnumerator<T>.DoMoveNext: Boolean;
 begin
   Result := (FEnumerator <> nil) and FEnumerator.MoveNext;
 end;
 
-procedure TEnumeratorWrapper<T>.DoReset;
+procedure TWrapEnumerator<T>.DoReset;
 begin
   inherited;
   if FOwnEnumerator then
@@ -283,21 +382,97 @@ begin
   end;
 end;
 
-{ TEnumerableWrapper<T> }
+{ TEmptyEnumerator<T> }
 
-constructor TEnumerableWrapper<T>.Create(aEnumerable: TEnumerable<T>);
+function TEmptyEnumerator<T>.DoGetCurrent: T;
 begin
-  Create(TObjectHolder<TEnumerable<T>>.Create(aEnumerable, False));
+  Result := Default(T);
 end;
 
-constructor TEnumerableWrapper<T>.Create(aEnumerable: IObjectHolder<TEnumerable<T>>);
+function TEmptyEnumerator<T>.DoMoveNext: Boolean;
 begin
-  FEnumerable := aEnumerable;
+  Result := False;
 end;
 
-function TEnumerableWrapper<T>.DoGetEnumerator: IEnumerator<T>;
+{ TMappingEnumerator<T, R> }
+
+constructor TMappingEnumerator<T, R>.Create(aSource: IEnumerable<T>; aMapper: TFunc<T, R>);
 begin
-  Result := TEnumeratorWrapper<T>.Create(FEnumerable);
+  inherited Create;
+  FSource := aSource;
+  FMapper := aMapper;
+  Reset;
+end;
+
+function TMappingEnumerator<T, R>.DoGetCurrent: R;
+begin
+  Result := FCurrent;
+end;
+
+function TMappingEnumerator<T, R>.DoMoveNext: Boolean;
+begin
+  Result := (FEnumerator <> nil) and FEnumerator.MoveNext;
+  if Result then
+    FCurrent := FMapper(FEnumerator.Current)
+  else
+    FCurrent := Default(R);
+end;
+
+procedure TMappingEnumerator<T, R>.DoReset;
+begin
+  inherited;
+  if FSource <> nil then
+    FEnumerator := FSource.GetEnumerator
+  else
+    FEnumerator := nil;
+end;
+
+{ TEnumerableFactory<T> }
+
+constructor TEnumerableFactory<T>.Create(aFactory: TFunc<IEnumerator<T>>);
+begin
+  inherited Create;
+  FFactory := aFactory;
+end;
+
+function TEnumerableFactory<T>.DoGetEnumerator: IEnumerator<T>;
+begin
+  if Assigned(FFactory) then
+    Result := FFactory;
+  if Result = nil then
+    Result := TEmptyEnumerator<T>.Create;
+end;
+
+{ TIndexedEnumerator<T> }
+
+constructor TIndexedEnumerator<T>.Create(aFromIndex, aToIndex: Integer; aOnGetItem: TFunc<Integer, T>);
+begin
+  inherited Create;
+  FFromIndex := aFromIndex;
+  FToIndex := aToIndex;
+  FOnGetItem := aOnGetItem;
+  Reset;
+end;
+
+function TIndexedEnumerator<T>.DoGetCurrent: T;
+begin
+  Result := FCurrent;
+end;
+
+function TIndexedEnumerator<T>.DoMoveNext: Boolean;
+begin
+  Result := (FCurrentIndex + 1 >= FFromIndex) and (FCurrentIndex + 1 <= FToIndex) and Assigned(FOnGetItem);
+  if Result then
+  begin
+    Inc(FCurrentIndex);
+    FCurrent := FOnGetItem(FCurrentIndex);
+  end;
+end;
+
+procedure TIndexedEnumerator<T>.DoReset;
+begin
+  inherited;
+  FCurrentIndex := FFromIndex - 1;
 end;
 
 end.

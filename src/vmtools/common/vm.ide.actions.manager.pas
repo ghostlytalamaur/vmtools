@@ -6,7 +6,7 @@ interface
 
 uses
   vmsys, classes, actnlist, generics.collections, {$IFDEF DELPHIX_BERLIN_UP}actions, {$ENDIF} vm.common.updatestack, menus,
-  base_params, inifiles;
+  base_params, inifiles, collections.common, collections.maps;
 
 type
   TVMActionManagerParams = class(TBaseParams)
@@ -15,13 +15,12 @@ type
     cst_Reg_ActNamePrefix = 'ActionName';
     cst_Reg_ActShortCutPrefix = 'ActionShortCut';
   strict private
-    FActionToShortCut: TDictionary<string, TShortCut>;
+    FActionToShortCut: IMap<string, TShortCut>;
   strict protected
     procedure DoReadParams(aIni: TCustomIniFile); override;
     procedure DoWriteParams(aIni: TCustomIniFile); override;
   public
     constructor Create; override;
-    destructor Destroy; override;
     procedure SetDefault; override;
 
     function GetActionShortCut(aName: string; out ShortCut: TShortCut): Boolean;
@@ -116,6 +115,7 @@ constructor TVMActionManager.Create;
 begin
   inherited Create;
   FParams := TVMActionManagerParams.Create;
+  FParams.ReadParams;
   FUpdateStack := TUpdateStack.Create(DoBeginUpdate, DoEndUpdate);
   FOwnActionList := TObjectList<TAction>.Create;
 end;
@@ -127,7 +127,7 @@ begin
   begin
     UnRegsiterAction(FOwnActionList.First.Name);
   end;
-  FParams.WriteParams;
+
   FreeAndNil(FOwnActionList);
   FreeAndNil(FMainMenu);
   FreeAndNil(FUpdateStack);
@@ -157,6 +157,7 @@ begin
 
   InstallMenu;
   InstallKeyboardBindings;
+  FParams.WriteParams;
 end;
 
 function TVMActionManager.ChangeShortCut(aName: string; aShortCut: TShortCut): Boolean;
@@ -168,7 +169,10 @@ begin
     Act := FindAction(aName);
     Result := Act <> nil;
     if Result then
+    begin
       Act.ShortCut := aShortCut;
+      FParams.SetActionShortCut(aName, aShortCut);
+    end;
   finally
     EndUpdate;
   end;
@@ -612,13 +616,7 @@ end;
 constructor TVMActionManagerParams.Create;
 begin
   inherited Create;
-  FActionToShortCut := TDictionary<string, TShortCut>.Create;
-end;
-
-destructor TVMActionManagerParams.Destroy;
-begin
-  FreeAndNil(FActionToShortCut);
-  inherited;
+  FActionToShortCut := THashMap<string, TShortCut>.Create;
 end;
 
 procedure TVMActionManagerParams.SetDefault;
@@ -643,23 +641,15 @@ begin
 end;
 
 procedure TVMActionManagerParams.DoWriteParams(aIni: TCustomIniFile);
-var
-  ShortCuts: TArray<string>;
-  ShortCut: TShortCut;
-  I: Integer;
 begin
   inherited;
-
-  SetLength(ShortCuts, FActionToShortCut.Count);
-  I := 0;
-  for ShortCut in FActionToShortCut.Values do
-  begin
-    ShortCuts[I] := ShortCutToText(ShortCut);
-    Inc(I);
-  end;
-
-  WriteStrings(aIni, cst_Reg_Section, cst_Reg_ActNamePrefix, FActionToShortCut.Keys.ToArray);
-  WriteStrings(aIni, cst_Reg_Section, cst_Reg_ActNamePrefix, ShortCuts);
+  WriteStrings(aIni, cst_Reg_Section, cst_Reg_ActNamePrefix, FActionToShortCut.Keys);
+  WriteStrings(aIni, cst_Reg_Section, cst_Reg_ActShortCutPrefix,
+      TCollectionsUtils.Map<TShortCut, string>(FActionToShortCut.Values,
+        function (aShortCut: TShortCut): string
+        begin
+          Result := ShortCutToText(aShortCut);
+        end));
 end;
 
 function TVMActionManagerParams.GetActionShortCut(aName: string; out ShortCut: TShortCut): Boolean;
@@ -669,7 +659,7 @@ end;
 
 procedure TVMActionManagerParams.SetActionShortCut(aName: string; aShortCut: TShortCut);
 begin
-  FActionToShortCut.AddOrSetValue(aName, aShortCut);
+  FActionToShortCut[aName] := aShortCut;
 end;
 
 end.

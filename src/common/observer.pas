@@ -57,13 +57,17 @@ type
 
   IObservableData<T> = interface
     function getValue: T;
-    procedure setValue(const Value: T);
-    procedure postValue(const Value: T);
 
     procedure RegisterObserver(aObserver: IDataObserver<T>);
     procedure RemoveObserver(aObserver: IDataObserver<T>);
 
     function HasActiveObservers: Boolean;
+    property Value: T read GetValue;
+  end;
+
+  IMutableData<T> = interface(IObservableData<T>)
+    procedure setValue(const Value: T);
+    procedure postValue(const Value: T);
   end;
 
   TDataObservereCallback<T> = reference to procedure (aData: T);
@@ -82,7 +86,7 @@ type
   end;
 
   TOnDisposeValue<T> = reference to procedure (var Value: T);
-  TObservableData<T> = class(TInterfacedObject, IObservableData<T>)
+  TObservableData<T> = class(TInterfacedObject, IObservableData<T>, IMutableData<T>)
   private
     FData: T;
     FObservers: TList<IDataObserver<T>>;
@@ -261,7 +265,7 @@ end;
 
 procedure TObservableData<T>.DoPostValue(const Value: T);
 var
-  Dest: IObservableData<T>;
+  Dest: IMutableData<T>;
 begin
   Dest := Self;
   TThread.Queue(nil, procedure

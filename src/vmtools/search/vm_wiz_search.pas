@@ -267,7 +267,7 @@ end;
 
 function TVMSearchHandler.GetProjectPaths: IEnumerable<string>;
 begin
-  Result := TStrUtils.Words(TVMOtaUtils.GetProjectPaths, [';']);
+  Result := TVMOtaUtils.GetProjectPathsList;
 end;
 
 function TVMSearchHandler.GetQueryText: string;

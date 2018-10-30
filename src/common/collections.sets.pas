@@ -10,7 +10,8 @@ type
   ['{F9153EFF-CE30-46BF-9643-BB47A9D448BC}']
     function GetCount: Integer;
 
-    function Add(const aItem: T): Boolean;
+    function Add(const aItem: T): Boolean; overload;
+    function Add(aEnumerable: IEnumerable<T>): Boolean; overload;
     function Remove(const aItem: T): Boolean;
     function Contains(const aItem: T): Boolean;
 
@@ -31,7 +32,8 @@ type
     {ISet<T>}
     function GetCount: Integer;
 
-    function Add(const aItem: T): Boolean;
+    function Add(const aItem: T): Boolean; overload;
+    function Add(aEnumerable: IEnumerable<T>): Boolean; overload;
     function Remove(const aItem: T): Boolean;
     function Contains(const aItem: T): Boolean;
 
@@ -63,6 +65,16 @@ begin
   FDict.AddOrSetValue(aItem, V);
 end;
 
+function THashSet<T>.Add(aEnumerable: IEnumerable<T>): Boolean;
+var
+  Item: T;
+begin
+  Result := False;
+  if aEnumerable <> nil then
+    for Item in aEnumerable do
+      Result := Add(Item) or Result;
+end;
+
 function THashSet<T>.Contains(const aItem: T): Boolean;
 begin
   Result := FDict.ContainsKey(aItem);
@@ -70,7 +82,7 @@ end;
 
 function THashSet<T>.DoGetEnumerator: IEnumerator<T>;
 begin
-  Result := TEnumeratorWrapper<T>.Create(FDict.Keys);
+  Result := TWrapEnumerator<T>.Create(FDict.Keys.GetEnumerator, True);
 end;
 
 function THashSet<T>.GetCount: Integer;

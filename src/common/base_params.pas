@@ -32,6 +32,7 @@ type
     FTree: TParamsTree;
 
     procedure ReadWriteParams(IsRead: Boolean);
+    class procedure RemoveStrings(aIni: TCustomIniFile; aSection, aPrefix: string);
   strict protected
     procedure DoReadParams(aIni: TCustomIniFile); virtual;
     procedure DoWriteParams(aIni: TCustomIniFile); virtual;
@@ -44,6 +45,8 @@ type
 
     class procedure WriteStrings(aIni: TCustomIniFile; aSection, aPrefix: string; aList: TArray<string>); overload;
     class function ReadStrings(aIni: TCustomIniFile; aSection, aPrefix: string): TArray<string>; overload;
+
+    class procedure WriteStrings(aIni: TCustomIniFile; aSection, aPrefix: string; aEnumerable: IEnumerable<string>); overload;
   strict private
     function GetParamsTree: TParamsTree;
   public
@@ -165,46 +168,62 @@ begin
   ReadWriteParams(False);
 end;
 
+class procedure TBaseParams.RemoveStrings(aIni: TCustomIniFile; aSection, aPrefix: string);
+var
+  Count: Integer;
+  I: Integer;
+begin
+  if aIni = nil then
+    Exit;
+
+  Count := aIni.ReadInteger(aSection, aPrefix + 'Count', 0);
+  for I := 0 to Count - 1 do
+    aIni.DeleteKey(aSection, aPrefix + IntToStr(I));
+end;
+
 class procedure TBaseParams.WriteStrings(aIni: TCustomIniFile; aSection, aPrefix: string; aList: TArray<string>);
 var
   I: Integer;
 begin
-  aIni.EraseSection(aSection);
-  if aList = nil then
+  RemoveStrings(aIni, aSection, aPrefix);
+  if (aList = nil) or (aIni = nil) then
     Exit;
 
+  aIni.WriteInteger(aSection, aPrefix + 'Count', Length(aList));
   for I := 0 to High(aList) do
     aIni.WriteString(aSection, aPrefix + IntToStr(I), aList[I]);
 end;
 
 class function TBaseParams.ReadStrings(aIni: TCustomIniFile; aSection, aPrefix: string): TArray<string>;
 var
-  Keys: TStringList;
-  Key, Value: string;
-  Cnt: Integer;
+  I, Count: Integer;
 begin
   Result := nil;
-  Keys := TStringList.Create;
-  try
-    aIni.ReadSection(aSection, Keys);
-    SetLength(Result, Keys.Count);
-    Cnt := 0;
-    for Key in Keys do
-    begin
-      if not StartsText(aPrefix, key) then
-        Continue;
+  if aIni = nil then
+    Exit;
 
-      Value := aIni.ReadString(aSection, Key, '');
-      if Value <> '' then
-      begin
-        Result[Cnt] := Value;
-        Inc(Cnt);
-      end;
-    end;
-    SetLength(Result, Cnt);
-  finally
-    FreeAndNil(Keys);
+  Count := aIni.ReadInteger(aSection, aPrefix + 'Count', 0);
+  SetLength(Result, Count);
+  for I := 0 to Count - 1 do
+    Result[I] := aIni.ReadString(aSection, aPrefix + IntToStr(I), '');
+end;
+
+class procedure TBaseParams.WriteStrings(aIni: TCustomIniFile; aSection, aPrefix: string; aEnumerable: IEnumerable<string>);
+var
+  I: Integer;
+  S: string;
+begin
+  RemoveStrings(aIni, aSection, aPrefix);
+  if (aIni = nil) or (aEnumerable = nil) then
+    Exit;
+
+  I := 0;
+  for S in aEnumerable do
+  begin
+    aIni.WriteString(aSection, aPrefix + IntToStr(I), S);
+    Inc(I);
   end;
+  aIni.WriteInteger(aSection, aPrefix + 'Count', I);
 end;
 
 class procedure TBaseParams.ReadStrings(aIni: TCustomIniFile; aSection, aPrefix: string; DestList: TStringList);

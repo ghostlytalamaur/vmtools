@@ -26,25 +26,30 @@ var
   Idx, I: Integer;
 begin
   SetLength(Result, Length(aArr1) + Length(aArr2));
+// TODO: optimize it
+(*
   if {$IFDEF DELPHIX_BERLIN_UP}IsManagedType(T){$ELSE}True{$ENDIF} then
   begin
+*)
     Idx := 0;
     for I := Low(aArr1) to High(aArr1) do
     begin
       Result[Idx] := aArr1[I];
       Inc(Idx);
     end;
-    for I := Low(aArr1) to High(aArr1) do
+    for I := Low(aArr2) to High(aArr2) do
     begin
-      Result[Idx] := aArr1[I];
+      Result[Idx] := aArr2[I];
       Inc(Idx);
     end;
+(*
   end
   else
   begin
     Move(aArr1[Low(aArr1)], Result[0], SizeOf(T) * Length(aArr1));
     Move(aArr2[Low(aArr2)], Result[Length(aArr1)], SizeOf(T) * Length(aArr2));
   end;
+*)
 end;
 
 class function TArrayUtils.GetEmptyArray<T>(aLen: Integer; const aDefValue: T): TArray<T>;

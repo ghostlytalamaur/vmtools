@@ -22,6 +22,7 @@ type
     procedure Add(const aKey: K; const aValue: V);
     procedure Remove(const aKey: K);
     procedure Clear;
+    function TryGetValue(const aKey: K; out Value: V): Boolean;
 
     property Keys: IEnumerable<K> read GetKeys;
     property Values: IEnumerable<V> read GetValues;
@@ -50,6 +51,7 @@ type
     procedure Add(const aKey: K; const aValue: V);
     procedure Remove(const aKey: K);
     procedure Clear;
+    function TryGetValue(const aKey: K; out Value: V): Boolean;
 
     property Keys: IEnumerable<K> read GetKeys;
     property Values: IEnumerable<V> read GetValues;
@@ -188,12 +190,17 @@ end;
 
 function THashMap<K, V>.DoGetEnumerator: IEnumerator<TPair<K, V>>;
 begin
-  Result := TEnumeratorWrapper<TPair<K, V>>.Create(FDict.Obj.GetEnumerator, True);
+  Result := TWrapEnumerator<TPair<K, V>>.Create(FDict.Obj.GetEnumerator, True);
 end;
 
 function THashMap<K, V>.GetCount: Integer;
 begin
   Result := FDict.Obj.Count;
+end;
+
+function THashMap<K, V>.TryGetValue(const aKey: K; out Value: V): Boolean;
+begin
+  Result := FDict.Obj.TryGetValue(aKey, Value);
 end;
 
 function THashMap<K, V>.GetItems(aKey: K): V;
@@ -205,8 +212,7 @@ end;
 function THashMap<K, V>.GetKeys: IEnumerable<K>;
 begin
   if FKeysEnumerable = nil then
-    FKeysEnumerable := TEnumerableWrapper<K>.Create(
-      TMappingObjectHolder<TDictionary<K, V>, TEnumerable<K>>.Create(FDict,
+    FKeysEnumerable := TCollectionsUtils.Wrap<K>(TMappingObjectHolder<TDictionary<K, V>, TEnumerable<K>>.Create(FDict,
       function (aDict: TDictionary<K, V>): TEnumerable<K>
       begin
         Result := aDict.Keys;
@@ -218,7 +224,7 @@ end;
 function THashMap<K, V>.GetValues: IEnumerable<V>;
 begin
   if FValuesEnumerable = nil then
-    FValuesEnumerable := TEnumerableWrapper<V>.Create(
+    FValuesEnumerable := TCollectionsUtils.Wrap<V>(
       TMappingObjectHolder<TDictionary<K, V>, TEnumerable<V>>.Create(FDict,
       function (aDict: TDictionary<K, V>): TEnumerable<V>
       begin

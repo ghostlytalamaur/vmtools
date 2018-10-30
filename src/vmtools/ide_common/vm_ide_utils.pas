@@ -64,21 +64,25 @@ type
     class function GetTopEditView: IOTAEditView;
     class function GetWordUnderCursorInCurView: string;
     class function GetActiveProject: IOTAProject;
-    class function GetProjectGroupFileList: TArray<string>;
-    class function GetActiveProjectFileList: TArray<string>;
+
+    class function GetProjectGroupFileList: IEnumerable<string>;
+    class function GetActiveProjectFileList: IEnumerable<string>;
+
+    // may return relative or macro paths
+    class function GetProjectPaths: string;
+    class function GetBrowsingPath: string;
+
+    class function NormalizePaths(aProject: IOTAProject; Paths: IEnumerable<string>): IEnumerable<string>;
   public
     class function GetIdeActionList: TCustomActionList;
     class function GetKeyboardServices: IOTAKeyboardServices;
 
     class function GetCurrentOpenFileName: string;
     class function GetCurrentOpenProjectFileName: string;
-    class function GetBrowsingPath: string;
-    class function GetBrowsingPathList: TArray<string>;
-    class function GetProjectPaths: string;
-    class function GetProjectPathsList: TArray<string>;
-    class function GetProjectGroupsPaths: string;
-    class function GetProjectGroupsPathsEnum: IEnumerable<string>;
-    class function GetProjectFileList(aFromProjectGroup: Boolean): TArray<string>;
+    class function GetBrowsingPathList: IEnumerable<string>;
+    class function GetProjectPathsList: IEnumerable<string>;
+    class function GetProjectGroupsPathsList: IEnumerable<string>;
+    class function GetProjectFileList(aFromProjectGroup: Boolean): IEnumerable<string>;
     class function GetWordUnderCursorInCurView2: string;
   end;
 
@@ -86,7 +90,7 @@ type
 implementation
 
 uses
-  sysutils, Registry, str_utils, collections.array_utils;
+  sysutils, Registry, str_utils, collections.array_utils, collections.common, collections.sets;
 
 
 
@@ -140,9 +144,9 @@ begin
   end;
 end;
 
-class function TVMOtaUtils.GetBrowsingPathList: TArray<string>;
+class function TVMOtaUtils.GetBrowsingPathList: IEnumerable<string>;
 begin
-  Result := TArrayUtils.AsArray<string>(TStrUtils.Words(GetBrowsingPath, [';']));
+  Result := TStrUtils.Words(GetBrowsingPath, [';']);
 end;
 
 class function TVMOtaUtils.GetProjectPaths: string;
@@ -155,20 +159,39 @@ begin
   end;
 end;
 
-class function TVMOtaUtils.GetProjectPathsList: TArray<string>;
+class function TVMOtaUtils.GetProjectPathsList: IEnumerable<string>;
 begin
-  Result := TArrayUtils.AsArray<string>(TStrUtils.Words(GetProjectPaths, [';']))
+  Result := NormalizePaths(GetActiveProject, TStrUtils.Words(GetProjectPaths, [';']));
 end;
 
-class function TVMOtaUtils.GetProjectGroupsPaths: string;
+class function TVMOtaUtils.NormalizePaths(aProject: IOTAProject; Paths: IEnumerable<string>): IEnumerable<string>;
+var
+  ProjectPath: string;
+begin
+  if aProject <> nil then
+    ProjectPath := IncludeTrailingBackslash(ExtractFilePath(aProject.FileName))
+  else
+    ProjectPath := '';
+
+  Result := TCollectionsUtils.Map<string, string>(Paths, function (aPath: string): string
+  begin
+    Result := NormalizeDelphiPath(aPath);
+    if (ProjectPath <> '') and IsRelativePath(Result) then
+      Result := ExpandFileName(ProjectPath + Result);
+  end);
+end;
+
+class function TVMOtaUtils.GetProjectGroupsPathsList: IEnumerable<string>;
 var
   ModuleServices: IOTAModuleServices;
   Group: IOTAProjectGroup;
   Project: IOTAProject;
   ProjOptions: IOTAProjectOptions;
   I: Integer;
+  Paths: ISet<string>;
 begin
-  Result := '';
+  Paths := THashSet<string>.Create;
+  Result := Paths;
   if not Supports(BorlandIDEServices, IOTAModuleServices, ModuleServices) then
     Exit;
 
@@ -184,24 +207,22 @@ begin
 
     ProjOptions := Project.ProjectOptions;
     if ProjOptions <> nil then
-      Result := TStrUtils.Join([Result, LowerCase(ProjOptions.Values['SrcDir'])], ';');
+      Paths.Add(NormalizePaths(Project, TStrUtils.Words(LowerCase(ProjOptions.Values['SrcDir']), [';'])));
   end;
 end;
 
-class function TVMOtaUtils.GetProjectGroupsPathsEnum: IEnumerable<string>;
-begin
-  Result := TStrUtils.Words(GetProjectGroupsPaths, [';']);
-end;
-
-class function TVMOtaUtils.GetProjectGroupFileList: TArray<string>;
+class function TVMOtaUtils.GetProjectGroupFileList: IEnumerable<string>;
 var
   ModuleServices: IOTAModuleServices;
   Group: IOTAProjectGroup;
   Project: IOTAProject;
   I: Integer;
   List: TStringList;
+  Files: ISet<string>;
+  ListEnum: IEnumerable<string>;
 begin
-  Result := nil;
+  Files := THashSet<string>.Create;
+  Result := Files;
   if not Supports(BorlandIDEServices, IOTAModuleServices, ModuleServices) then
     Exit;
 
@@ -211,22 +232,24 @@ begin
 
   List := TStringList.Create;
   try
+    ListEnum := TCollectionsUtils.Wrap(List);
     for I := 0 to Group.ProjectCount - 1 do
     begin
       Project := Group.Projects[I];
       if Project = nil then
         Exit;
 
+      List.Clear;
       Project.GetCompleteFileList(List);
+      Files.Add(NormalizePaths(Project, ListEnum));
     end;
-
-    Result := List.ToStringArray;
   finally
+    ListEnum := nil;
     FreeAndNil(List);
   end;
 end;
 
-class function TVMOtaUtils.GetActiveProjectFileList: TArray<string>;
+class function TVMOtaUtils.GetActiveProjectFileList: IEnumerable<string>;
 var
   Project: IOTAProject;
   List: TStringList;
@@ -239,13 +262,13 @@ begin
       Exit;
 
     Project.GetCompleteFileList(List);
-    Result := List.ToStringArray;
+    Result := NormalizePaths(Project, TCollectionsUtils.Wrap(List));
   finally
-    List.Free;
+    FreeAndNil(List);
   end;
 end;
 
-class function TVMOtaUtils.GetProjectFileList(aFromProjectGroup: Boolean): TArray<string>;
+class function TVMOtaUtils.GetProjectFileList(aFromProjectGroup: Boolean): IEnumerable<string>;
 begin
   if aFromProjectGroup then
     Result := GetProjectGroupFileList

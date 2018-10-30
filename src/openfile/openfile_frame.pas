@@ -405,7 +405,7 @@ end;
 procedure TOpenFileFrameParams.DoWriteParams(aIni: TCustomIniFile);
 begin
   inherited;
-  WriteStrings(aIni, 'LastOpenFileFilterList', 'Filter', TArrayUtils.AsArray<string>(FLastFiles.AsEnumerable));
+  WriteStrings(aIni, 'LastOpenFileFilterList', 'Filter', FLastFiles.AsEnumerable);
 end;
 
 end.

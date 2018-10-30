@@ -4,7 +4,7 @@ implementation
 
 uses
   testframework, sysutils, classes, generics.collections, strutils, collections.array_utils,
-  generics.defaults, collections.tst, collections.deque;
+  generics.defaults, collections.tst, collections.deque, collections.common;
 
 type
   TTSTTests = class(TTestCase)
@@ -24,6 +24,14 @@ type
     procedure TestDeque;
     procedure TestDequeDispose;
     procedure TestDequeEnumerator;
+  end;
+
+  TCollectionsTests = class(TTestCase)
+  published
+    procedure TestWrapList;
+    procedure TestWrapStringList;
+    procedure TestMap;
+    procedure TestEmpty;
   end;
 
 { TVMSymTests }
@@ -398,9 +406,117 @@ begin
   end;
 end;
 
+{ TCollectionsTests }
+
+procedure TCollectionsTests.TestEmpty;
+var
+  K: string;
+begin
+  for K in TCollectionsUtils.Empty<string> do
+    Check(False, 'Empty enumerable should not have any items.');
+end;
+
+procedure TCollectionsTests.TestMap;
+var
+  List: TList<string>;
+  Key: string;
+  ListEnum: IEnumerable<string>;
+  MapEnum: IEnumerable<Integer>;
+  I, Idx: Integer;
+begin
+  List := TList<string>.Create;
+  try
+    for Key in cstKeys do
+      List.Add(Key);
+
+    ListEnum := TCollectionsUtils.Wrap<string>(List);
+    MapEnum := TCollectionsUtils.Map<string, Integer>(ListEnum, function (Item: string): Integer
+    begin
+      Result := IndexText(Item, cstKeys);
+    end);
+
+    Idx := 0;
+    for I in MapEnum do
+    begin
+      CheckEquals(Idx, I, 'Invalid index after map.');
+      Inc(Idx);
+    end;
+  finally
+    FreeAndNil(List);
+  end;
+end;
+
+procedure TCollectionsTests.TestWrapList;
+
+  procedure DoTest(List: TList<string>; ListEnum: IEnumerable<string>);
+  var
+    Key: string;
+    I: Integer;
+  begin
+    I := 0;
+    for Key in ListEnum do
+    begin
+      CheckEquals(List[I], Key, Format('1. Different key at pos = %d', [I]));
+      Inc(I);
+    end;
+    CheckEquals(List.Count, I, '1. Not all items present in enumerator');
+  end;
+
+var
+  List: TList<string>;
+  Key: string;
+  ListEnum: IEnumerable<string>;
+begin
+  List := TList<string>.Create;
+  try
+    for Key in cstKeys do
+      List.Add(Key);
+
+    ListEnum := TCollectionsUtils.Wrap<string>(List);
+    DoTest(List, ListEnum);
+    DoTest(List, ListEnum);
+  finally
+    FreeAndNil(List);
+  end;
+end;
+
+procedure TCollectionsTests.TestWrapStringList;
+
+  procedure DoTest(List: TStringList; ListEnum: IEnumerable<string>);
+  var
+    Key: string;
+    I: Integer;
+  begin
+    I := 0;
+    for Key in ListEnum do
+    begin
+      CheckEquals(List[I], Key, Format('1. Different key at pos = %d', [I]));
+      Inc(I);
+    end;
+    CheckEquals(List.Count, I, '1. Not all items present in enumerator');
+  end;
+
+var
+  List: TStringList;
+  Key: string;
+  ListEnum: IEnumerable<string>;
+begin
+  List := TStringList.Create;
+  try
+    for Key in cstKeys do
+      List.Add(Key);
+
+    ListEnum := TCollectionsUtils.Wrap(List);
+    DoTest(List, ListEnum);
+    DoTest(List, ListEnum);
+  finally
+    FreeAndNil(List);
+  end;
+end;
+
 initialization
   TestFramework.RegisterTest('common.collections.tst', TTSTTests.Suite);
   TestFramework.RegisterTest('common.collections.deque', TDequeTests.Suite);
-
+  TestFramework.RegisterTest('common.collections.common', TCollectionsTests.Suite);
 end.
 

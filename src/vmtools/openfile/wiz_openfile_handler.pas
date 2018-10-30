@@ -34,7 +34,7 @@ type
   protected
     function GetDirPaths: IEnumerable<string>; override;
     function GetFileMasks: TArray<string>; override;
-    function GetAdditionFileList: TArray<string>; override;
+    function GetAdditionFileList: IEnumerable<string>; override;
   public
     constructor Create(aParams: TOpenFileHandlerParams);
     procedure OpenFile(const aFilePath: string); override;
@@ -45,7 +45,7 @@ implementation
 
 uses
   vmsys, SysUtils, ioutils, masks, str_utils, generics.defaults, regularexpressionscore,
-  otlparallel, OtlCollections, collections.array_utils, vm_ide_utils;
+  otlparallel, OtlCollections, collections.array_utils, vm_ide_utils, collections.sets;
 
 const
   cstValidFileMasks = '*.pas;*.dpr;*.inc;*.def;*.rc';
@@ -65,22 +65,22 @@ begin
   FParams.RegisterObserver(IParamsChangedObserver, FParamsObserver)
 end;
 
-function TOpenFileHandler.GetAdditionFileList: TArray<string>;
+function TOpenFileHandler.GetAdditionFileList: IEnumerable<string>;
 begin
   Result := TVMOtaUtils.GetProjectFileList(Params.IncludeFromProjectGroup);
 end;
 
 function TOpenFileHandler.GetDirPaths: IEnumerable<string>;
 var
-  DirPathsStr: string;
+  Paths: ISet<string>;
 begin
-  DirPathsStr := TVMOtaUtils.GetProjectPaths;
+  Paths := THashSet<string>.Create;
+  Result := Paths;
+  Paths.Add(TVMOtaUtils.GetProjectPathsList);
   if Params.IncludeBrowsingPaths then
-    DirPathsStr := TStrUtils.Join([DirPathsStr, TVMOtaUtils.GetBrowsingPath], ';');
+    Paths.Add(TVMOtaUtils.GetBrowsingPathList);
   if Params.IncludeFromProjectGroup then
-    DirPathsStr := TStrUtils.Join([DirPathsStr, TVMOtaUtils.GetProjectGroupsPaths], ';');
-
-  Result := TStrUtils.Words(DirPathsStr, [';']);
+    Paths.Add(TVMOtaUtils.GetProjectGroupsPathsList);
 end;
 
 function TOpenFileHandler.GetFileMasks: TArray<string>;

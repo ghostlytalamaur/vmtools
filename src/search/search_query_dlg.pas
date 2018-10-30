@@ -153,8 +153,8 @@ end;
 procedure TSearchEngineQueryDlgParams.DoWriteParams(aIni: TCustomIniFile);
 begin
   inherited;
-  WriteStrings(aIni, 'LastSearchQueryList', 'Query', TArrayUtils.AsArray<string>(FLastQueryList.AsEnumerable));
-  WriteStrings(aIni, 'LastFileRegExp', 'FileRegExp', TArrayUtils.AsArray<string>(FLastFileRegExp.AsEnumerable));
+  WriteStrings(aIni, 'LastSearchQueryList', 'Query', FLastQueryList.AsEnumerable);
+  WriteStrings(aIni, 'LastFileRegExp', 'FileRegExp', FLastFileRegExp.AsEnumerable);
 end;
 
 end.

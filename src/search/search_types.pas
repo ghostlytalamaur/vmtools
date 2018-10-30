@@ -59,24 +59,24 @@ type
   TSearchInfo = class(TExtObject)
   private
     FSearchText: string;
-    FResults: IObservableData<TVMSearchResultsList>;
-    FStatus: IObservableData<TSearchStatusCode>;
-    FStatusText: IObservableData<string>;
-    FErrors: IObservableData<TStringList>;
+    FResults: IMutableData<TVMSearchResultsList>;
+    FStatus: IMutableData<TSearchStatusCode>;
+    FStatusText: IMutableData<string>;
+    FErrors: IMutableData<TStringList>;
     FSearchId: Int64;
 
-    function GetResults: IObservableData<TVMSearchResultsList>;
+    function GetResults: IMutableData<TVMSearchResultsList>;
   public
     constructor Create(aSearchText: string; aResults: TVMSearchResultsList);
     destructor Destroy; override;
     procedure CopyResults(aFrom: TSearchInfo);
 
     property SearchText: string read FSearchText;
-    property Results: IObservableData<TVMSearchResultsList> read GetResults;
-    property Status: IObservableData<TSearchStatusCode> read FStatus;
-    property StatusText: IObservableData<string> read FStatusText;
+    property Results: IMutableData<TVMSearchResultsList> read GetResults;
+    property Status: IMutableData<TSearchStatusCode> read FStatus;
+    property StatusText: IMutableData<string> read FStatusText;
     property SearchId: Int64 read FSearchId write FSearchId;
-    property Errors: IObservableData<TStringList> read FErrors;
+    property Errors: IMutableData<TStringList> read FErrors;
   end;
 
 implementation
@@ -155,9 +155,15 @@ end;
 procedure TSearchInfo.CopyResults(aFrom: TSearchInfo);
 begin
   if (aFrom = nil) or (aFrom.Results.getValue = nil) then
-    Results.setValue(nil)
+  begin
+    if FResults <> nil then
+      FResults.setValue(nil)
+  end
   else
-    Results.setValue(TVMSearchResultsList.Copy(aFrom.Results.getValue));
+  begin
+    GetResults;
+    FResults.setValue(TVMSearchResultsList.Copy(aFrom.Results.getValue));
+  end;
 end;
 
 constructor TSearchInfo.Create(aSearchText: string; aResults: TVMSearchResultsList);
@@ -180,7 +186,7 @@ begin
   inherited;
 end;
 
-function TSearchInfo.GetResults: IObservableData<TVMSearchResultsList>;
+function TSearchInfo.GetResults: IMutableData<TVMSearchResultsList>;
 begin
   if FResults = nil then
     FResults := TObservableData<TVMSearchResultsList>.Create(
