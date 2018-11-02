@@ -3,259 +3,55 @@ unit collections.common;
 interface
 
 uses
-  vmsys, generics.collections, sysutils, Classes;
+  vmsys, generics.collections, sysutils, Classes, collections.types;
 
 type
-  TGenericEnumerator = class(TInterfacedObject, IEnumerator)
-  protected
-    function DoGetCurrentObj: TObject; virtual;
-    function DoMoveNext: Boolean; virtual;
-    procedure DoReset; virtual;
-  public
-    { IEnumerator }
-    function IEnumerator.GetCurrent = DoGetCurrentObj;
-    function IEnumerator.MoveNext = DoMoveNext;
-    procedure Reset;
-  end;
-
-  TBaseEnumerableImpl = class(TInterfacedObject, IEnumerable)
-  protected
-    function GetPointerEnumerator: IEnumerator; virtual;
-  public
-    { IEnumerable }
-    function IEnumerable.GetEnumerator = GetPointerEnumerator;
-  end;
-
-  TEnumeratorImpl<T> = class(TGenericEnumerator, IEnumerator<T>)
-  protected
-    function DoGetCurrent: T; virtual;
-  public
-    { IEnumerator<T> }
-    function IEnumerator<T>.GetCurrent = DoGetCurrent;
-  end;
-
-  TEnumerableImpl<T> = class(TBaseEnumerableImpl, IEnumerable<T>)
-  protected
-    function DoGetEnumerator: IEnumerator<T>; virtual; abstract;
-  public
-    { IEnumerable<T> }
-    function IEnumerable<T>.GetEnumerator = DoGetEnumerator;
-  end;
-
-  TBaseKeyValueEnumerable<K, V, T> = class(TEnumerableImpl<T>)
-  protected type
-    TBaseKeyValueEnumerator = class(TEnumeratorImpl<T>)
-    private
-      FPairs: IEnumerable<TPair<K, V>>;
-      FEnumerator: IEnumerator<TPair<K, V>>;
-    protected
-      function DoMoveNext: Boolean; override;
-      procedure DoReset; override;
-    public
-      constructor Create(aPairs: IEnumerable<TPair<K, V>>);
-    end;
-
-  private
-    FPairs: IEnumerable<TPair<K, V>>;
-  public
-    constructor Create(aPairs: IEnumerable<TPair<K, V>>);
-  end;
-
-  TKeysEnumerable<K, V> = class(TBaseKeyValueEnumerable<K, V, K>)
-  private type
-    TKeysEnumerator = class(TBaseKeyValueEnumerable<K, V, K>.TBaseKeyValueEnumerator)
-    protected
-      function DoGetCurrent: K; override;
-    end;
-  protected
-    function DoGetEnumerator: IEnumerator<K>; override;
-  end;
-
-  TValuesEnumerable<K, V> = class(TBaseKeyValueEnumerable<K, V, V>)
-  private type
-    TValuesEnumerator = class(TBaseKeyValueEnumerable<K, V, V>.TBaseKeyValueEnumerator)
-    protected
-      function DoGetCurrent: V; override;
-    end;
-  protected
-    function DoGetEnumerator: IEnumerator<V>; override;
-  end;
-
-  TWrapEnumerator<T> = class(TEnumeratorImpl<T>)
-  private
-    FEnumerable: IObjectHolder<TEnumerable<T>>;
-    FEnumerator: TEnumerator<T>;
-    FOwnEnumerator: Boolean;
-  protected
-    function DoMoveNext: Boolean; override;
-    function DoGetCurrent: T; override;
-    procedure DoReset; override;
-  public
-    constructor Create(aEnumerable: TEnumerable<T>); overload;
-    constructor Create(aEnumerable: IObjectHolder<TEnumerable<T>>); overload;
-    constructor Create(aEnumerator: TEnumerator<T>; aOwnEnumerator: Boolean); overload;
-    destructor Destroy; override;
-  end;
-
-  TEmptyEnumerator<T> = class(TEnumeratorImpl<T>)
-  protected
-    function DoGetCurrent: T; override;
-    function DoMoveNext: Boolean; override;
-  end;
-
-  TMappingEnumerator<T, R> = class(TEnumeratorImpl<R>)
-  private
-    FSource: IEnumerable<T>;
-    FMapper: TFunc<T, R>;
-
-    FEnumerator: IEnumerator<T>;
-    FCurrent: R;
-  protected
-    function DoGetCurrent: R; override;
-    function DoMoveNext: Boolean; override;
-    procedure DoReset; override;
-  public
-    constructor Create(aSource: IEnumerable<T>; aMapper: TFunc<T, R>);
-  end;
-
-  TIndexedEnumerator<T> = class(TEnumeratorImpl<T>)
-  public
-    FFromIndex: Integer;
-    FToIndex: Integer;
-    FCurrentIndex: Integer;
-    FCurrent: T;
-    FOnGetItem: TFunc<Integer, T>;
-  protected
-    function DoGetCurrent: T; override;
-    function DoMoveNext: Boolean; override;
-    procedure DoReset; override;
-  public
-    constructor Create(aFromIndex, aToIndex: Integer; aOnGetItem: TFunc<Integer, T>);
-  end;
-
-  TEnumerableFactory<T> = class(TEnumerableImpl<T>)
-  private
-    FFactory: TFunc<IEnumerator<T>>;
-  protected
-    function DoGetEnumerator: IEnumerator<T>; override;
-  public
-    constructor Create(aFactory: TFunc<IEnumerator<T>>);
-  end;
-
   TCollectionsUtils = record
   private
     class function WrapGetMethod(aList: TStringList): TFunc<Integer, string>; static;
   public
     class function FirstThat<T>(aEnumerable: TEnumerable<T>; aPredicate: TPredicate<T>): T; static;
-    class function Map<T, R>(aEnumerable: IEnumerable<T>; aMapper: TFunc<T, R>): IEnumerable<R>; static;
+    class function Map<T, R>(aEnumerable: IEnumerable<T>; aMapper: TMapper<T, R>): IEnumerable<R>; static;
     class function Wrap<T>(aEnumerable: TEnumerable<T>): IEnumerable<T>; overload; static;
     class function Wrap<T>(aEnumerable: IObjectHolder<TEnumerable<T>>): IEnumerable<T>; overload; static;
+    class function Wrap<T>(const aArray: array of T): IEnumerable<T>; overload; static;
+    class function Wrap(aList: IObjectHolder<TStringList>): IEnumerable<string>; overload; static;
     class function Wrap(aList: TStringList): IEnumerable<string>; overload; static;
+    class function Seq(aStart, aStep, aCount: Integer): IEnumerable<Integer>; static;
     class function Empty<T>: IEnumerable<T>; static;
+  end;
+
+  IAccumulator<T> = interface
+    procedure Apply(aValue: T);
+  end;
+
+  TPipeline<T> = record
+  private
+    FEnumerable: IEnumerable<T>;
+  public
+    // operators
+    function Filter(aPredicate: TFunc<T, Boolean>): TPipeline<T>;
+    function Map<R>(aMapper: TMapper<T, R>): TPipeline<R>; overload;
+    function Map<R>(aMapper: TFunc<T, R>): TPipeline<R>; overload;
+
+    // terminal
+    function Enum: IEnumerable<T>;
+    function Count: Integer;
+    procedure ForEach(aAction: TForEachAction<T>);
+  end;
+
+  Pipeline<T> = record
+  public
+    class function From(aEnumerable: IEnumerable<T>): TPipeline<T>; overload; static;
+    class function From(aEnumerable: TEnumerable<T>): TPipeline<T>; overload; static;
+    class function From(aEnumerable: IObjectHolder<TEnumerable<T>>): TPipeline<T>; overload; static;
+    class function From(const aArray: array of T): TPipeline<T>; overload; static;
   end;
 
 implementation
 
-{ TGenericEnumerable }
-
-function TBaseEnumerableImpl.GetPointerEnumerator: IEnumerator;
-begin
-  Result := nil;
-end;
-
-{ TGenericEnumerator }
-
-function TGenericEnumerator.DoGetCurrentObj: TObject;
-begin
-  Result := nil;
-end;
-
-function TGenericEnumerator.DoMoveNext: Boolean;
-begin
-  Result := False;
-end;
-
-procedure TGenericEnumerator.DoReset;
-begin
-
-end;
-
-procedure TGenericEnumerator.Reset;
-begin
-  DoReset;
-end;
-
-{ TEnumeratorImpl<T> }
-
-function TEnumeratorImpl<T>.DoGetCurrent: T;
-begin
-  Result := Default(T);
-end;
-
-{ TKeysEnumerable<K, V> }
-
-function TKeysEnumerable<K, V>.DoGetEnumerator: IEnumerator<K>;
-begin
-  Result := TKeysEnumerator.Create(FPairs);
-end;
-
-{ TKeysEnumerable<K, V>.TKeysEnumerator }
-
-function TKeysEnumerable<K, V>.TKeysEnumerator.DoGetCurrent: K;
-begin
-  if FEnumerator <> nil then
-    Result := FEnumerator.Current.Key
-  else
-    Result := Default(K);
-end;
-
-{ TBaseKeyValueEnumerable<K, V> }
-
-constructor TBaseKeyValueEnumerable<K, V, T>.Create(aPairs: IEnumerable<TPair<K, V>>);
-begin
-  inherited Create;
-  FPairs := aPairs;
-end;
-
-{ TBaseKeyValueEnumerable<K, V>.TBaseKeyValueEnumerator<TT> }
-
-constructor TBaseKeyValueEnumerable<K, V, T>.TBaseKeyValueEnumerator.Create(aPairs: IEnumerable<TPair<K, V>>);
-begin
-  inherited Create;
-  FPairs := aPairs;
-  Reset;
-end;
-
-function TBaseKeyValueEnumerable<K, V, T>.TBaseKeyValueEnumerator.DoMoveNext: Boolean;
-begin
-  Result := (FEnumerator <> nil) and FEnumerator.MoveNext;
-end;
-
-procedure TBaseKeyValueEnumerable<K, V, T>.TBaseKeyValueEnumerator.DoReset;
-begin
-  if FPairs <> nil then
-    FEnumerator := FPairs.GetEnumerator
-  else
-    FEnumerator := nil;
-  inherited;
-end;
-
-{ TValuesEnumerable<K, V>.TKeysEnumerator }
-
-function TValuesEnumerable<K, V>.TValuesEnumerator.DoGetCurrent: V;
-begin
-  if (FEnumerator <> nil) then
-    Result := FEnumerator.Current.Value
-  else
-    Result := Default(V);
-end;
-
-{ TValuesEnumerable<K, V> }
-
-function TValuesEnumerable<K, V>.DoGetEnumerator: IEnumerator<V>;
-begin
-  Result := TValuesEnumerator.Create(FPairs);
-end;
+uses
+  collections.array_utils, collections.enumerators;
 
 
 { TCollectionsUtils }
@@ -279,7 +75,7 @@ begin
   Result := Default(T);
 end;
 
-class function TCollectionsUtils.Map<T, R>(aEnumerable: IEnumerable<T>; aMapper: TFunc<T, R>): IEnumerable<R>;
+class function TCollectionsUtils.Map<T, R>(aEnumerable: IEnumerable<T>; aMapper: TMapper<T, R>): IEnumerable<R>;
 begin
   if (aEnumerable = nil) or not Assigned(aMapper) then
   begin
@@ -290,6 +86,17 @@ begin
   Result := TEnumerableFactory<R>.Create(function : IEnumerator<R>
   begin
     Result := TMappingEnumerator<T,R>.Create(aEnumerable, aMapper);
+  end);
+end;
+
+class function TCollectionsUtils.Seq(aStart, aStep, aCount: Integer): IEnumerable<Integer>;
+begin
+  Result := TEnumerableFactory<Integer>.Create(function : IEnumerator<Integer>
+  begin
+    Result := TIndexedEnumerator<Integer>.Create(aStart, aStep, aCount, function (aIndex: Integer): Integer
+    begin
+      Result := aIndex;
+    end);
   end);
 end;
 
@@ -306,6 +113,20 @@ begin
   end);
 end;
 
+class function TCollectionsUtils.Wrap<T>(const aArray: array of T): IEnumerable<T>;
+var
+  Arr: TArray<T>;
+begin
+  Arr := TArrayUtils.AsArray(aArray);
+  Result := TEnumerableFactory<T>.Create(function : IEnumerator<T>
+  begin
+    Result := TIndexedEnumerator<T>.Create(Low(Arr), 1, Length(Arr), function (aIndex: Integer): T
+    begin
+      Result := Arr[aIndex];
+    end);
+  end);
+end;
+
 class function TCollectionsUtils.WrapGetMethod(aList: TStringList): TFunc<Integer, string>;
 begin
   Result := function (aIndex: Integer): string
@@ -317,162 +138,110 @@ begin
   end;
 end;
 
-class function TCollectionsUtils.Wrap(aList: TStringList): IEnumerable<string>;
+class function TCollectionsUtils.Wrap(aList: IObjectHolder<TStringList>): IEnumerable<string>;
 begin
   if aList <> nil then
     Result := TEnumerableFactory<string>.Create(function : IEnumerator<string>
     begin
-      Result := TIndexedEnumerator<string>.Create(0, aList.Count - 1, WrapGetMethod(aList));
+      Result := TIndexedEnumerator<string>.Create(0, 1, aList.Obj.Count, WrapGetMethod(aList.Obj));
     end)
   else
     Result := Empty<string>;
 end;
 
-{ TWrapEnumerator<T> }
-
-constructor TWrapEnumerator<T>.Create(aEnumerable: TEnumerable<T>);
+class function TCollectionsUtils.Wrap(aList: TStringList): IEnumerable<string>;
 begin
-  Create(TObjectHolder<TEnumerable<T>>.Create(aEnumerable, False));
-end;
-
-constructor TWrapEnumerator<T>.Create(aEnumerable: IObjectHolder<TEnumerable<T>>);
-begin
-  inherited Create;
-  FEnumerable := aEnumerable;
-  Reset;
-end;
-
-constructor TWrapEnumerator<T>.Create(aEnumerator: TEnumerator<T>; aOwnEnumerator: Boolean);
-begin
-  inherited Create;
-  FEnumerator := aEnumerator;
-  FOwnEnumerator := aOwnEnumerator;
-end;
-
-destructor TWrapEnumerator<T>.Destroy;
-begin
-  if FOwnEnumerator then
-    FreeAndNil(FEnumerator);
-  inherited;
-end;
-
-function TWrapEnumerator<T>.DoGetCurrent: T;
-begin
-  if FEnumerator <> nil then
-    Result := FEnumerator.Current
+  if aList <> nil then
+    Result := TEnumerableFactory<string>.Create(function : IEnumerator<string>
+    begin
+      Result := TIndexedEnumerator<string>.Create(0, 1, aList.Count, WrapGetMethod(aList));
+    end)
   else
-    Result := Default(T);
+    Result := Empty<string>;
 end;
 
-function TWrapEnumerator<T>.DoMoveNext: Boolean;
+{ TPipeline<T> }
+
+function TPipeline<T>.Enum: IEnumerable<T>;
 begin
-  Result := (FEnumerator <> nil) and FEnumerator.MoveNext;
-end;
-
-procedure TWrapEnumerator<T>.DoReset;
-begin
-  inherited;
-  if FOwnEnumerator then
-    FreeAndNil(FEnumerator);
-  FEnumerator := nil;
-  if (FEnumerable <> nil) and FEnumerable.IsAlive then
-  begin
-    FEnumerator := FEnumerable.Obj.GetEnumerator;
-    FOwnEnumerator := True;
-  end;
-end;
-
-{ TEmptyEnumerator<T> }
-
-function TEmptyEnumerator<T>.DoGetCurrent: T;
-begin
-  Result := Default(T);
-end;
-
-function TEmptyEnumerator<T>.DoMoveNext: Boolean;
-begin
-  Result := False;
-end;
-
-{ TMappingEnumerator<T, R> }
-
-constructor TMappingEnumerator<T, R>.Create(aSource: IEnumerable<T>; aMapper: TFunc<T, R>);
-begin
-  inherited Create;
-  FSource := aSource;
-  FMapper := aMapper;
-  Reset;
-end;
-
-function TMappingEnumerator<T, R>.DoGetCurrent: R;
-begin
-  Result := FCurrent;
-end;
-
-function TMappingEnumerator<T, R>.DoMoveNext: Boolean;
-begin
-  Result := (FEnumerator <> nil) and FEnumerator.MoveNext;
-  if Result then
-    FCurrent := FMapper(FEnumerator.Current)
+  if FEnumerable <> nil then
+    Result := FEnumerable
   else
-    FCurrent := Default(R);
+    Result := TCollectionsUtils.Empty<T>;
 end;
 
-procedure TMappingEnumerator<T, R>.DoReset;
+function TPipeline<T>.Count: Integer;
+var
+  Item: T;
 begin
-  inherited;
-  if FSource <> nil then
-    FEnumerator := FSource.GetEnumerator
-  else
-    FEnumerator := nil;
+  Result := 0;
+  for Item in Enum do
+    Inc(Result);
 end;
 
-{ TEnumerableFactory<T> }
-
-constructor TEnumerableFactory<T>.Create(aFactory: TFunc<IEnumerator<T>>);
+procedure TPipeline<T>.ForEach(aAction: TForEachAction<T>);
+var
+  Item: T;
 begin
-  inherited Create;
-  FFactory := aFactory;
+  for Item in Enum do
+    aAction(Item);
 end;
 
-function TEnumerableFactory<T>.DoGetEnumerator: IEnumerator<T>;
+function TPipeline<T>.Filter(aPredicate: TFunc<T, Boolean>): TPipeline<T>;
+var
+  Stage: IEnumerable<T>;
 begin
-  if Assigned(FFactory) then
-    Result := FFactory;
-  if Result = nil then
-    Result := TEmptyEnumerator<T>.Create;
+  Stage := TPipelineMappingEnumerable<T, T>.Create(FEnumerable,
+    function (aSourceEnumerator: IEnumerator<T>): IEnumerator<T>
+    begin
+      Result := TFilterEnumerator<T>.Create(aSourceEnumerator, aPredicate);
+    end);
+
+  Result := Pipeline<T>.From(Stage);
 end;
 
-{ TIndexedEnumerator<T> }
-
-constructor TIndexedEnumerator<T>.Create(aFromIndex, aToIndex: Integer; aOnGetItem: TFunc<Integer, T>);
+function TPipeline<T>.Map<R>(aMapper: TMapper<T, R>): TPipeline<R>;
+var
+  Stage: IEnumerable<R>;
 begin
-  inherited Create;
-  FFromIndex := aFromIndex;
-  FToIndex := aToIndex;
-  FOnGetItem := aOnGetItem;
-  Reset;
+  Stage := TPipelineMappingEnumerable<T, R>.Create(FEnumerable,
+    function (aSourceEnumerator: IEnumerator<T>): IEnumerator<R>
+    begin
+      Result := TPipelineMappingEnumerator<T, R>.Create(aSourceEnumerator, aMapper);
+    end);
+
+  Result := Pipeline<R>.From(Stage);
 end;
 
-function TIndexedEnumerator<T>.DoGetCurrent: T;
+function TPipeline<T>.Map<R>(aMapper: TFunc<T, R>): TPipeline<R>;
 begin
-  Result := FCurrent;
+  Result := Map<R>(
+    function (const aValue: T): R
+    begin
+      Result := aMapper(aValue)
+    end);
 end;
 
-function TIndexedEnumerator<T>.DoMoveNext: Boolean;
+{ Pipeline<T> }
+
+class function Pipeline<T>.From(aEnumerable: IEnumerable<T>): TPipeline<T>;
 begin
-  Result := (FCurrentIndex + 1 >= FFromIndex) and (FCurrentIndex + 1 <= FToIndex) and Assigned(FOnGetItem);
-  if Result then
-  begin
-    Inc(FCurrentIndex);
-    FCurrent := FOnGetItem(FCurrentIndex);
-  end;
+  Result.FEnumerable := aEnumerable;
 end;
 
-procedure TIndexedEnumerator<T>.DoReset;
+class function Pipeline<T>.From(aEnumerable: TEnumerable<T>): TPipeline<T>;
 begin
-  inherited;
-  FCurrentIndex := FFromIndex - 1;
+  Result.FEnumerable := TCollectionsUtils.Wrap<T>(aEnumerable);
+end;
+
+class function Pipeline<T>.From(aEnumerable: IObjectHolder<TEnumerable<T>>): TPipeline<T>;
+begin
+  Result.FEnumerable := TCollectionsUtils.Wrap<T>(aEnumerable);
+end;
+
+class function Pipeline<T>.From(const aArray: array of T): TPipeline<T>;
+begin
+  Result.FEnumerable := TCollectionsUtils.Wrap<T>(aArray);
 end;
 
 end.

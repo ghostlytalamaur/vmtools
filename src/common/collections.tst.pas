@@ -5,7 +5,8 @@ interface
 uses
   sysutils,
   generics.collections,
-  collections.common;
+  collections.common,
+  collections.enumerators;
 
 type
   TOnDisposeValue<T> = reference to procedure (var aValue: T);

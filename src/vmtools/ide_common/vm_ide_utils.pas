@@ -90,7 +90,7 @@ type
 implementation
 
 uses
-  sysutils, Registry, str_utils, collections.array_utils, collections.common, collections.sets;
+  sysutils, Registry, str_utils, collections.array_utils, collections.common, collections.sets, vmsys;
 
 
 
@@ -173,12 +173,14 @@ begin
   else
     ProjectPath := '';
 
-  Result := TCollectionsUtils.Map<string, string>(Paths, function (aPath: string): string
-  begin
-    Result := NormalizeDelphiPath(aPath);
-    if (ProjectPath <> '') and IsRelativePath(Result) then
-      Result := ExpandFileName(ProjectPath + Result);
-  end);
+  Result := Pipeline<string>.From(Paths)
+      .Map<string>(function (aPath: string): string
+          begin
+            Result := NormalizeDelphiPath(aPath);
+            if (ProjectPath <> '') and IsRelativePath(Result) then
+              Result := ExpandFileName(ProjectPath + Result);
+          end)
+      .Enum;
 end;
 
 class function TVMOtaUtils.GetProjectGroupsPathsList: IEnumerable<string>;
@@ -252,20 +254,18 @@ end;
 class function TVMOtaUtils.GetActiveProjectFileList: IEnumerable<string>;
 var
   Project: IOTAProject;
-  List: TStringList;
+  List: IObjectHolder<TStringList>;
 begin
   Result := nil;
-  List := TStringList.Create;
-  try
-    Project := GetActiveProject;
-    if Project = nil then
-      Exit;
-
-    Project.GetCompleteFileList(List);
+  List := TObjectHolder<TStringList>.Create(TStringList.Create, True);
+  Project := GetActiveProject;
+  if Project <> nil then
+  begin
+    Project.GetCompleteFileList(List.Obj);
     Result := NormalizePaths(Project, TCollectionsUtils.Wrap(List));
-  finally
-    FreeAndNil(List);
-  end;
+  end
+  else
+    Result := TCollectionsUtils.Empty<string>;
 end;
 
 class function TVMOtaUtils.GetProjectFileList(aFromProjectGroup: Boolean): IEnumerable<string>;

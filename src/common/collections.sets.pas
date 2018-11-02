@@ -3,7 +3,7 @@ unit collections.sets;
 interface
 
 uses
-  collections.common, generics.collections;
+  collections.common, generics.collections, collections.enumerators;
 
 type
   ISet<T> = interface(IEnumerable<T>)

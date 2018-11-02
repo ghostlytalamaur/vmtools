@@ -645,11 +645,12 @@ begin
   inherited;
   WriteStrings(aIni, cst_Reg_Section, cst_Reg_ActNamePrefix, FActionToShortCut.Keys);
   WriteStrings(aIni, cst_Reg_Section, cst_Reg_ActShortCutPrefix,
-      TCollectionsUtils.Map<TShortCut, string>(FActionToShortCut.Values,
-        function (aShortCut: TShortCut): string
-        begin
-          Result := ShortCutToText(aShortCut);
-        end));
+      Pipeline<TShortCut>.From(FActionToShortCut.Values)
+        .Map<string>(function (aShortCut: TShortCut): string
+            begin
+              Result := ShortCutToText(aShortCut);
+            end)
+        .Enum);
 end;
 
 function TVMActionManagerParams.GetActionShortCut(aName: string; out ShortCut: TShortCut): Boolean;

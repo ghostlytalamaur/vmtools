@@ -34,7 +34,7 @@ type
 implementation
 
 uses
-  math, strutils, masks, collections.array_utils;
+  math, strutils, masks, collections.array_utils, collections.enumerators;
 
 type
   TStringWordsEnumerable = class(TEnumerableImpl<string>)

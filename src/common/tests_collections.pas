@@ -4,7 +4,8 @@ implementation
 
 uses
   testframework, sysutils, classes, generics.collections, strutils, collections.array_utils,
-  generics.defaults, collections.tst, collections.deque, collections.common;
+  generics.defaults, collections.tst, collections.deque, collections.common, fluentquery.genericobjects,
+  collections.sets;
 
 type
   TTSTTests = class(TTestCase)
@@ -32,6 +33,22 @@ type
     procedure TestWrapStringList;
     procedure TestMap;
     procedure TestEmpty;
+    procedure TestSeq;
+    procedure TestReverseSeq;
+    procedure TestSeq2;
+    procedure TestReverseSeq2;
+    procedure TestArrayEnumerator;
+  end;
+
+  TPipelineTests = class(TTestCase)
+  private
+  published
+    procedure TestObjectQuery;
+    procedure TestFilterMap;
+    procedure TestFilter;
+    procedure TestMap;
+    procedure TestCount;
+    procedure TestForEach;
   end;
 
 { TVMSymTests }
@@ -408,6 +425,21 @@ end;
 
 { TCollectionsTests }
 
+procedure TCollectionsTests.TestArrayEnumerator;
+const
+  cstArray: array [-1..3] of Integer = (-10, 20, 30, 40, 70);
+var
+  Value, Idx: Integer;
+begin
+  Idx := Low(cstArray) - 1;
+  for Value in TCollectionsUtils.Wrap<Integer>(cstArray) do
+  begin
+    Inc(Idx);
+    CheckEquals(cstArray[Idx], Value);
+  end;
+  CheckEquals(High(cstArray), Idx);
+end;
+
 procedure TCollectionsTests.TestEmpty;
 var
   K: string;
@@ -430,7 +462,7 @@ begin
       List.Add(Key);
 
     ListEnum := TCollectionsUtils.Wrap<string>(List);
-    MapEnum := TCollectionsUtils.Map<string, Integer>(ListEnum, function (Item: string): Integer
+    MapEnum := TCollectionsUtils.Map<string, Integer>(ListEnum, function (const Item: string): Integer
     begin
       Result := IndexText(Item, cstKeys);
     end);
@@ -444,6 +476,58 @@ begin
   finally
     FreeAndNil(List);
   end;
+end;
+
+procedure TCollectionsTests.TestSeq;
+var
+  I, Idx: Integer;
+begin
+  Idx := -1;
+  for I in TCollectionsUtils.Seq(0, 1, 10) do
+  begin
+    Inc(Idx);
+    CheckEquals(Idx, I);
+  end;
+  CheckEquals(9, Idx);
+end;
+
+procedure TCollectionsTests.TestSeq2;
+var
+  I, Idx: Integer;
+begin
+  Idx := -2;
+  for I in TCollectionsUtils.Seq(0, 2, 10) do
+  begin
+    Inc(Idx, 2);
+    CheckEquals(Idx, I);
+  end;
+  CheckEquals(18, Idx);
+end;
+
+procedure TCollectionsTests.TestReverseSeq;
+var
+  I, Idx: Integer;
+begin
+  Idx := 1;
+  for I in TCollectionsUtils.Seq(0, -1, 10) do
+  begin
+    Dec(Idx);
+    CheckEquals(Idx, I);
+  end;
+  CheckEquals(-9, Idx);
+end;
+
+procedure TCollectionsTests.TestReverseSeq2;
+var
+  I, Idx: Integer;
+begin
+  Idx := 2;
+  for I in TCollectionsUtils.Seq(0, -2, 10) do
+  begin
+    Inc(Idx, -2);
+    CheckEquals(Idx, I);
+  end;
+  CheckEquals(-18, Idx);
 end;
 
 procedure TCollectionsTests.TestWrapList;
@@ -514,9 +598,148 @@ begin
   end;
 end;
 
+{ TPipelineTests }
+
+type
+  TDataObject = class
+  public
+    Index: Integer;
+    Key: string;
+  end;
+
+procedure TPipelineTests.TestObjectQuery;
+var
+  List: TList<TDataObject>;
+  I: Integer;
+  O: TDataObject;
+begin
+  List := TObjectList<TDataObject>.Create;
+  try
+    for I := 0 to High(cstKeys) do
+    begin
+      List.Add(TDataObject.Create);
+      List[I].Index := I;
+      List[I].Key := cstKeys[I]
+    end;
+    for O in ObjectQuery<TDataObject>.Select
+        .Skip(1)
+        .From(List) do;
+  finally
+    FreeAndNil(List);
+  end;
+end;
+
+procedure TPipelineTests.TestFilterMap;
+var
+  Keys: ISet<Integer>;
+  CurKey, Key: string;
+  I, Cnt: Integer;
+begin
+  Keys := THashSet<Integer>.Create;
+  for I in TCollectionsUtils.Seq(0, 1, Length(cstKeys)) do
+    Keys.Add(I);
+  Cnt := 0;
+  for Key in Pipeline<Integer>.From(Keys)
+      .Filter(function (aValue: Integer): Boolean
+      begin
+        Result := aValue = 1;
+      end)
+      .Map<string>(function (aValue: Integer): string
+      begin
+        Result := cstKeys[aValue];
+      end)
+      .Enum do
+  begin
+    Inc(Cnt);
+    CurKey := Key;
+  end;
+  CheckEquals(1, Cnt);
+  CheckEquals(cstKeys[1], CurKey);
+end;
+
+procedure TPipelineTests.TestMap;
+var
+  Keys: TList<string>;
+  Key: string;
+  I, Idx: Integer;
+begin
+  Keys := TList<string>.Create;
+  try
+    for Key in cstKeys do
+      Keys.Add(Key);
+    Idx := -1;
+    for I in Pipeline<string>.From(TCollectionsUtils.Wrap<string>(Keys))
+        .Map<Integer>(Keys.IndexOf)
+        .Enum do
+    begin
+      Inc(Idx);
+      CheckEquals(Idx, I);
+    end;
+    CheckEquals(Keys.Count, Idx + 1);
+  finally
+    FreeAndNil(Keys);
+  end;
+end;
+
+procedure TPipelineTests.TestCount;
+var
+  Keys: ISet<string>;
+  Key: string;
+begin
+  Keys := THashSet<string>.Create;
+  for Key in cstKeys do
+    Keys.Add(Key);
+  CheckEquals(Length(cstKeys), Pipeline<string>.From(Keys).Count);
+end;
+
+procedure TPipelineTests.TestForEach;
+var
+  Keys: ISet<string>;
+  List: TList<string>;
+  Key: string;
+begin
+  Keys := THashSet<string>.Create;
+  List := TList<string>.Create;
+  try
+    for Key in cstKeys do
+      Keys.Add(Key);
+    Pipeline<string>.From(Keys).ForEach(procedure (const aValue: string)
+      begin
+        List.Add(aValue);
+      end);
+    CheckEquals(Keys.Count, List.Count);
+  finally
+    FreeAndNil(List);
+  end;
+end;
+
+procedure TPipelineTests.TestFilter;
+var
+  Keys: ISet<string>;
+  CurKey, Key: string;
+  Cnt: Integer;
+begin
+  Keys := THashSet<string>.Create;
+  for Key in cstKeys do
+    Keys.Add(Key);
+  Cnt := 0;
+  for Key in Pipeline<string>.From(Keys)
+      .Filter(function (aKey: string): Boolean
+      begin
+        Result := aKey = 'sells';
+      end).Enum do
+  begin
+    Inc(Cnt);
+    CurKey := Key;
+  end;
+  CheckEquals(1, Cnt);
+end;
+
 initialization
   TestFramework.RegisterTest('common.collections.tst', TTSTTests.Suite);
   TestFramework.RegisterTest('common.collections.deque', TDequeTests.Suite);
   TestFramework.RegisterTest('common.collections.common', TCollectionsTests.Suite);
+  TestFramework.RegisterTest('common.collections.fluentquery', TPipelineTests.Suite);
+
 end.
 

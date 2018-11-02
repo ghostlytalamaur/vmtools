@@ -3,7 +3,7 @@ unit collections.deque;
 interface
 
 uses
-  collections.common;
+  collections.common, collections.enumerators;
 
 type
   TOnDisposeValue<T> = reference to procedure (var Value: T);

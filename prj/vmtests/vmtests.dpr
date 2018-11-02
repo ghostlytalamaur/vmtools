@@ -24,15 +24,15 @@ uses
   tests_vmsys,
   tests_str_utils,
   tests_collections,
-
-// folowing units added just for check compilation
   collections.common,
   collections.array_utils,
   collections.rbtree,
   collections.maps,
   collections.tst,
   collections.lists,
-  collections.deque;
+  collections.deque,
+  collections.enumerators in '..\..\src\common\collections.enumerators.pas',
+  collections.types in '..\..\src\common\collections.types.pas';
 
 {$R *.RES}
 

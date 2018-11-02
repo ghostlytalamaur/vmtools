@@ -7,6 +7,7 @@ uses
   generics.defaults,
   collections.rbtree,
   collections.common,
+  collections.enumerators,
   vmsys;
 
 type
