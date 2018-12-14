@@ -15,11 +15,13 @@ type
   strict private
     FFilePath: string;
     FFileName: string;
+    FNormalizedFileName: string;
   public
     constructor Create(aFilePath: string);
 
     property FilePath: string read FFilePath;
     property FileName: string read FFileName;
+    property NormalizedFileName: string read FNormalizedFileName;
   end;
 
   TOpenFileHandlerStatus = (
@@ -29,7 +31,7 @@ type
       ofht_Filtering);
   TBaseOpenFileHandler = class(TExtObject)
   private
-    FPathsTrie: TDictionary<string, TFilePathRec>;
+    FPathsList: TList<TFilePathRec>;
     FCritSection: TOmniCS;
     FWorker: IOmniBackgroundWorker;
     FStatus: IMutableData<TOpenFileHandlerStatus>;
@@ -39,7 +41,7 @@ type
 
     function ValidateFileList: Boolean;
 
-    function GetFilePaths(aWorkItem: IOmniWorkItem) : TDictionary<string, TFilePathRec>;
+    function GetFilePaths(aWorkItem: IOmniWorkItem) : TList<TFilePathRec>;
     function GetFilteredPaths(const aFilter: string; aWorkItem: IOmniWorkItem): TList<string>;
     procedure FilterPaths;
 
@@ -82,14 +84,16 @@ uses
 
 type
   TRefreshWorkItemResult = class
-    Trie: TDictionary<string, TFilePathRec>;
+  public
+    List: TList<TFilePathRec>;
 
-    constructor Create(aTrie: TDictionary<string, TFilePathRec>);
+    constructor Create(aList: TList<TFilePathRec>);
     destructor Destroy; override;
-    function AcquireTrie: TDictionary<string, TFilePathRec>;
+    function AcquireList: TList<TFilePathRec>;
   end;
 
   TFilterWorkItemResult = class
+  public
     List: TList<string>;
 
     constructor Create(aList: TList<string>);
@@ -210,8 +214,8 @@ begin
 
   FCritSection.Acquire;
   try
-    FreeAndNil(FPathsTrie);
-    FPathsTrie := (WorkItem.Result.AsOwnedObject as TRefreshWorkItemResult).AcquireTrie;
+    FreeAndNil(FPathsList);
+    FPathsList := (WorkItem.Result.AsOwnedObject as TRefreshWorkItemResult).AcquireList;
   finally
     FCritSection.Release;
   end;
@@ -225,11 +229,11 @@ begin
   FWorker.CancelAll;
   FWorker.Terminate(INFINITE);
   FWorker:= nil;
-  FreeAndNil(FPathsTrie);
+  FreeAndNil(FPathsList);
   inherited;
 end;
 
-function TBaseOpenFileHandler.GetFilePaths(aWorkItem: IOmniWorkItem): TDictionary<string, TFilePathRec>;
+function TBaseOpenFileHandler.GetFilePaths(aWorkItem: IOmniWorkItem): TList<TFilePathRec>;
 var
   FilePathsSet: ISet<string>;
   FileMasks: TArray<string>;
@@ -247,7 +251,6 @@ var
   FilePath: string;
   DirPaths: IEnumerable<string>;
   Processed: ISet<string>;
-  Rec: TFilePathRec;
 begin
   Result := nil;
   Processed := THashSet<string>.Create(10000);
@@ -277,10 +280,9 @@ begin
 
   for FilePath in FilePathsSet do
   begin
-    Rec := TFilePathRec.Create(FilePath);
     if Result = nil then
-      Result := TDictionary<string, TFilePathRec>.Create(10000);
-    Result.AddOrSetValue(TStrUtils.Normalize(Rec.FileName), Rec);
+      Result := TList<TFilePathRec>.Create();
+    Result.Add(TFilePathRec.Create(FilePath));
     if aWorkItem.CancellationToken.IsSignalled then
     begin
       FreeAndNil(Result);
@@ -337,7 +339,7 @@ var
   Coefs: TDictionary<string, Single>;
   Ratio: Single;
   FilterNGrams: TArray<string>;
-  P: TPair<string, TFilePathRec>;
+  Rec: TFilePathRec;
   FuzzyRegExp, FilleRegExp: TPerlRegEx;
   Comparer: IComparer<string>;
   NormFilter: string;
@@ -348,7 +350,7 @@ begin
 
   FCritSection.Acquire;
   try
-    if (FPathsTrie = nil) then
+    if (FPathsList = nil) then
       Exit;
   finally
     FCritSection.Release;
@@ -369,19 +371,19 @@ begin
 
     FCritSection.Acquire;
     try
-      for P in FPathsTrie do
+      for Rec in FPathsList do
       begin
         if aWorkItem.CancellationToken.IsSignalled then
           Exit;
 
         try
-          if Pos(NormFilter, TStrUtils.Normalize(P.Key)) <= 0 then
+          if Pos(NormFilter, Rec.NormalizedFileName) <= 0 then
           begin
-            FilleRegExp.Subject := P.Value.FileName;
+            FilleRegExp.Subject := Rec.FileName;
             if not FilleRegExp.Match then
             begin
               if FuzzyRegExp <> nil then
-                FuzzyRegExp.Subject := P.Value.FileName;
+                FuzzyRegExp.Subject := Rec.FileName;
               if (FuzzyRegExp = nil) or not FuzzyRegExp.Match then
                 Continue;
             end;
@@ -390,11 +392,11 @@ begin
           Continue;
         end;
 
-        Ratio := TStrUtils.NGramsSimilarity(FilterNGrams, TStrUtils.NGrams(P.Key, cstTokenLen));
-        Coefs.AddOrSetValue(P.Value.FilePath, Ratio);
+        Ratio := TStrUtils.NGramsSimilarity(FilterNGrams, TStrUtils.NGrams(Rec.NormalizedFileName, cstTokenLen));
+        Coefs.AddOrSetValue(Rec.FilePath, Ratio);
         if Result = nil then
           Result := TList<string>.Create;
-        Result.Add(P.Value.FilePath);
+        Result.Add(Rec.FilePath);
       end;
     finally
       FCritSection.Release;
@@ -491,6 +493,7 @@ begin
   inherited;
   FFilePath := aFilePath;
   FFileName := ExtractFileName(FFilePath);
+  FNormalizedFileName := TStrUtils.Normalize(FFileName);
 end;
 
 { TFilterWorkItemResult }
@@ -515,21 +518,21 @@ end;
 
 { TRefreshWorkItemResult }
 
-function TRefreshWorkItemResult.AcquireTrie: TDictionary<string, TFilePathRec>;
+function TRefreshWorkItemResult.AcquireList: TList<TFilePathRec>;
 begin
-  Result := Trie;
-  Trie := nil;
+  Result := List;
+  List := nil;
 end;
 
-constructor TRefreshWorkItemResult.Create(aTrie: TDictionary<string, TFilePathRec>);
+constructor TRefreshWorkItemResult.Create(aList: TList<TFilePathRec>);
 begin
   inherited Create;
-  Trie := aTrie;
+  List := aList;
 end;
 
 destructor TRefreshWorkItemResult.Destroy;
 begin
-  FreeAndNil(Trie);
+  FreeAndNil(List);
   inherited;
 end;
 
