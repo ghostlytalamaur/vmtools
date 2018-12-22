@@ -58,7 +58,7 @@ implementation
 
 uses
   vm_ide_utils, SysUtils, vmtools_cst, ioutils, deskutil, masks,
-  vm.ide.options.treehandler;
+  vm.ide.options.treehandler, vm.debug;
 
 type
   TExtOpenFileHandler = class(TOpenFileHandler)
@@ -269,6 +269,7 @@ end;
 
 procedure TExtOpenFileHandler.OpenFile(const aFilePath: string);
 begin
+  LogEnterLeave('TExtOpenFileHandler.OpenFile');
   inherited;
   if (FWiz.Dlg <> nil) and FWiz.Dlg.IsAlive and FWiz.Dlg.Obj.Floating then
     FWiz.Dlg.Obj.Hide;
