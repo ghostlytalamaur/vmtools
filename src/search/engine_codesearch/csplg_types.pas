@@ -3,7 +3,7 @@ unit csplg_types;
 interface
 
 uses
-  generics.collections, classes;
+  generics.collections, classes, sysutils, observer;
 
 type
   TSearchItem = class(TObject)
@@ -23,15 +23,21 @@ type
     property RawText: string read FRawText write FRawText;
   end;
 
+  ICSSearchResultsListener = interface
+    procedure ItemAdded(aItem: TSearchItem);
+  end;
+
   PSearchResults = ^TSearchResults;
   TSearchResults = class(TObject)
   private
     FItems: TList<TSearchItem>;
     FErrors: TStringList;
+    FAnnouncer: IAnnouncer<ICSSearchResultsListener>;
 
     function GetCount: Integer;
     function GetItems(aIndex: Integer): TSearchItem;
     function GetErrors: TStringList;
+    function GetListeners: IListenersRegistry<ICSSearchResultsListener>;
   public
     constructor Create;
     destructor Destroy; override;
@@ -42,12 +48,11 @@ type
     property Items[aIndex: Integer]: TSearchItem read GetItems; default;
     property Count: Integer read GetCount;
     property Errors: TStringList read GetErrors;
+    property Listeners: IListenersRegistry<ICSSearchResultsListener> read GetListeners;
   end;
 
 implementation
 
-uses
-  sysutils;
 
 { TSearchItem }
 
@@ -64,14 +69,21 @@ end;
 
 procedure TSearchResults.Add(aItem: TSearchItem);
 begin
-  if aItem <> nil then
-    FItems.Add(aItem);
+  if aItem = nil then
+    Exit;
+
+  FItems.Add(aItem);
+  FAnnouncer.ForEachListener(procedure (aObserver: ICSSearchResultsListener)
+  begin
+    aObserver.ItemAdded(aItem);
+  end);
 end;
 
 constructor TSearchResults.Create;
 begin
   inherited Create;
   FItems := TObjectList<TSearchItem>.Create;
+  FAnnouncer := TAnnouncer<ICSSearchResultsListener>.Create;
 end;
 
 destructor TSearchResults.Destroy;
@@ -104,6 +116,11 @@ begin
     Result := FItems[aIndex]
   else
     Result := nil;
+end;
+
+function TSearchResults.GetListeners: IListenersRegistry<ICSSearchResultsListener>;
+begin
+  Result := FAnnouncer;
 end;
 
 end.

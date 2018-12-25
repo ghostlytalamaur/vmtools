@@ -3,7 +3,7 @@ unit observer;
 interface
 
 uses
-  Generics.Collections, SysUtils, weak_ref, vmsys, vm.common.updatestack;
+  Generics.Collections, SysUtils, weak_ref, vmsys, vm.common.updatestack, syncobjs;
 
 type
   IBaseObserver = interface(IWeakRefProvider)
@@ -26,13 +26,16 @@ type
     function UnRegisterObserver(aObserver: IBaseObserver): Boolean;
   end;
 
-  IAnnouncer<T: IInterface> = interface
+  IListenersRegistry<T: IInterface> = interface
     procedure RegisterListener(aListener: T);
     procedure RemoveListener(aListener: T);
+  end;
+
+  IAnnouncer<T: IInterface> = interface(IListenersRegistry<T>)
     procedure ForEachListener(aAction: TProc<T>);
   end;
 
-  TAnnouncer<T: IInterface> = class(TInterfacedObject, IAnnouncer<T>)
+  TAnnouncer<T: IInterface> = class(TInterfacedObject, IListenersRegistry<T>, IAnnouncer<T>)
   private
     FListeners: TList<T>;
   public
@@ -89,6 +92,8 @@ type
   TObservableData<T> = class(TInterfacedObject, IObservableData<T>, IMutableData<T>)
   private
     FData: T;
+    FBufData: T;
+    FBufDataLock: TCriticalSection;
     FObservers: TList<IDataObserver<T>>;
     FOnDisposeValue: TOnDisposeValue<T>;
     FDispatchInvalidated: Boolean;
@@ -98,6 +103,7 @@ type
     procedure setValue(const Value: T);
     procedure postValue(const Value: T);
     procedure DoPostValue(const Value: T);
+    procedure SwapBufData;
 
     procedure DisposeValue;
     procedure NotifyObserver(aObserver: IDataObserver<T>);
@@ -116,7 +122,7 @@ type
 implementation
 
 uses
-  Windows, generics.defaults, Classes, otlsync;
+  Windows, generics.defaults, Classes;
 
 
 constructor TBaseObservableObject.Create;
@@ -167,6 +173,7 @@ destructor TObservableData<T>.Destroy;
 begin
   DisposeValue;
   FreeAndNil(FObservers);
+  FreeAndNil(FBufDataLock);
   inherited;
 end;
 
@@ -200,6 +207,7 @@ end;
 constructor TObservableData<T>.Create(aOnDisposeValue: TOnDisposeValue<T>);
 begin
   inherited Create;
+  FBufDataLock := TCriticalSection.Create;
   FOnDisposeValue := aOnDisposeValue;
 end;
 
@@ -263,15 +271,33 @@ begin
   Result := False;
 end;
 
-procedure TObservableData<T>.DoPostValue(const Value: T);
+procedure TObservableData<T>.SwapBufData;
 var
-  Dest: IMutableData<T>;
+  Buf: T;
 begin
-  Dest := Self;
-  TThread.Queue(nil, procedure
-  begin
-    Dest.setValue(Value);
-  end)
+  FBufDataLock.Acquire;
+  try
+    Buf := FBufData;
+    FBufData := Default(T);
+  finally
+    FBufDataLock.Release;
+  end;
+  SetValue(Buf);
+end;
+
+procedure TObservableData<T>.DoPostValue(const Value: T);
+begin
+  FBufDataLock.Acquire;
+  try
+    TThread.RemoveQueuedEvents(nil, SwapBufData);
+    if Assigned(FOnDisposeValue) then
+      FOnDisposeValue(FBufData);
+
+    FBufData := Value;
+    TThread.Queue(nil, SwapBufData);
+  finally
+    FBufDataLock.Release;
+  end;
 end;
 
 procedure TObservableData<T>.postValue(const Value: T);

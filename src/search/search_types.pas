@@ -5,7 +5,7 @@ unit search_types;
 interface
 
 uses
-  vmsys, generics.collections, observer, classes;
+  vmsys, generics.collections, generics.defaults, observer, classes, syncobjs, collections.sets;
 
 type
   TVMSearchResultsItem = class(TObject)
@@ -28,17 +28,23 @@ type
     property Rating: Integer read FRating write FRating;
   end;
 
+  IVMSearchResultsListListener = interface
+  ['{DF66D538-C1FC-47B3-B106-22EF9BA09FE6}']
+    procedure ItemAdded(aItem: TVMSearchResultsItem);
+  end;
+
   TVMSearchResultsList = class(TObject)
   private
     FList: TList<TVMSearchResultsItem>;
+    FListCS: TCriticalSection;
+    FAnnouncer: IAnnouncer<IVMSearchResultsListListener>;
+
     function GetCount: Integer;
     function GetItem(aIdx: Integer): TVMSearchResultsItem;
+    function GetListeners: IListenersRegistry<IVMSearchResultsListListener>;
   public
     constructor Create;
-    constructor Copy(aFrom: TVMSearchResultsList);
-
     destructor Destroy; override;
-    procedure CopyFrom(aFrom: TVMSearchResultsList);
 
     procedure AddItem(aItem: TVMSearchResultsItem);
 
@@ -46,6 +52,7 @@ type
 
     property Items[aIdx: Integer]: TVMSearchResultsItem read GetItem;
     property Count: Integer read GetCount;
+    property Listeners: IListenersRegistry<IVMSearchResultsListListener> read GetListeners;
   end;
 
   TSearchStatusCode = (
@@ -65,14 +72,13 @@ type
     FErrors: IMutableData<TStringList>;
     FSearchId: Int64;
 
-    function GetResults: IMutableData<TVMSearchResultsList>;
+    function GetResults: IObservableData<TVMSearchResultsList>;
   public
-    constructor Create(aSearchText: string; aResults: TVMSearchResultsList);
+    constructor Create(aSearchText: string);
     destructor Destroy; override;
-    procedure CopyResults(aFrom: TSearchInfo);
 
     property SearchText: string read FSearchText;
-    property Results: IMutableData<TVMSearchResultsList> read GetResults;
+    property Results: IObservableData<TVMSearchResultsList> read GetResults;
     property Status: IMutableData<TSearchStatusCode> read FStatus;
     property StatusText: IMutableData<string> read FStatusText;
     property SearchId: Int64 read FSearchId write FSearchId;
@@ -88,89 +94,90 @@ uses
 
 procedure TVMSearchResultsList.AddItem(aItem: TVMSearchResultsItem);
 begin
-  if aItem <> nil then
+  if aItem = nil then
+    Exit;
+
+  FListCS.Acquire;
+  try
     FList.Add(aItem);
+    FAnnouncer.ForEachListener(procedure (aObserver: IVMSearchResultsListListener)
+    begin
+      aObserver.ItemAdded(aItem);
+    end);
+  finally
+    FListCS.Release;
+  end;
 end;
 
 function TVMSearchResultsList.CalculateFilesCount: Integer;
 var
-  TotalFiles: TDictionary<string, Pointer>;
+  TotalFiles: ISet<string>;
   Item: TVMSearchResultsItem;
 begin
-  TotalFiles := TDictionary<string, Pointer>.Create;
+  TotalFiles := THashSet<string>.Create;
+  FListCS.Acquire;
   try
     for Item in FList do
-      TotalFiles.AddOrSetValue(IncludeTrailingPathDelimiter(Item.FilePath) + Item.FileName, nil);
+      TotalFiles.Add(IncludeTrailingPathDelimiter(Item.FilePath) + Item.FileName);
     Result := TotalFiles.Count;
   finally
-    FreeAndNil(TotalFiles);
+    FListCS.Release;
   end;
-end;
-
-constructor TVMSearchResultsList.Copy(aFrom: TVMSearchResultsList);
-begin
-  Create;
-  CopyFrom(aFrom);
-end;
-
-procedure TVMSearchResultsList.CopyFrom(aFrom: TVMSearchResultsList);
-var
-  I: Integer;
-begin
-  FList.Clear;
-  if aFrom = nil then
-    Exit;
-
-  for I := 0 to aFrom.Count - 1 do
-    FList.Add(TVMSearchResultsItem.Copy(aFrom.Items[I]));
 end;
 
 constructor TVMSearchResultsList.Create;
 begin
   inherited Create;
+  FAnnouncer := TAnnouncer<IVMSearchResultsListListener>.Create;
   FList := TObjectList<TVMSearchResultsItem > .Create;
+  FListCS := TCriticalSection.Create;
 end;
 
 destructor TVMSearchResultsList.Destroy;
 begin
   FreeAndNil(FList);
+  FreeAndNil(FListCS);
   inherited;
 end;
 
 function TVMSearchResultsList.GetCount: Integer;
 begin
-  Result := FList.Count;
+  FListCS.Acquire;
+  try
+    Result := FList.Count;
+  finally
+    FListCS.Release;
+  end;
 end;
 
 function TVMSearchResultsList.GetItem(aIdx: Integer): TVMSearchResultsItem;
 begin
-  if (aIdx >= 0) and (aIdx < FList.Count) then
-    Result := FList[aIdx]
-  else
-    Result := nil;
-end;
-
-{ TSearchInfo }
-
-procedure TSearchInfo.CopyResults(aFrom: TSearchInfo);
-begin
-  if (aFrom = nil) or (aFrom.Results.getValue = nil) then
-  begin
-    if FResults <> nil then
-      FResults.setValue(nil)
-  end
-  else
-  begin
-    GetResults;
-    FResults.setValue(TVMSearchResultsList.Copy(aFrom.Results.getValue));
+  FListCS.Acquire;
+  try
+    if (aIdx >= 0) and (aIdx < FList.Count) then
+      Result := FList[aIdx]
+    else
+      Result := nil;
+  finally
+    FListCS.Release;
   end;
 end;
 
-constructor TSearchInfo.Create(aSearchText: string; aResults: TVMSearchResultsList);
+function TVMSearchResultsList.GetListeners: IListenersRegistry<IVMSearchResultsListListener>;
+begin
+  Result := FAnnouncer;
+end;
+
+constructor TSearchInfo.Create(aSearchText: string);
 begin
   inherited Create;
   FSearchText := aSearchText;
-  Results.setValue(aResults);
+  FResults := TObservableData<TVMSearchResultsList>.Create(
+    procedure (var Value: TVMSearchResultsList)
+    begin
+      FreeAndNil(Value);
+    end);
+  FResults.setValue(TVMSearchResultsList.Create);
   FStatusText := TObservableData<string>.Create;
   FStatus := TObservableData<TSearchStatusCode>.Create;
   FStatus.SetValue(ssc_Unknown);
@@ -186,14 +193,8 @@ begin
   inherited;
 end;
 
-function TSearchInfo.GetResults: IMutableData<TVMSearchResultsList>;
+function TSearchInfo.GetResults: IObservableData<TVMSearchResultsList>;
 begin
-  if FResults = nil then
-    FResults := TObservableData<TVMSearchResultsList>.Create(
-      procedure (var Value: TVMSearchResultsList)
-      begin
-        FreeAndNil(Value);
-      end);
   Result := FResults;
 end;
 

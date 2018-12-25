@@ -65,7 +65,7 @@ type
         aCancellationToken: IOmniCancellationToken): TJCLAppExecutor;
 
     function DoSearchMultiThread2(aParams: TCodeSearchQueryParams; aIndexFile: string;
-        out Results: TSearchResults): TCodeSearchEngineError;
+        Results: TSearchResults): TCodeSearchEngineError;
 
     function CreateSearchExecutor(aParams: TCodeSearchQueryParams; aIndexFile: string;
         DestErrors: TStringList): TPipelineStageDelegateEx;
@@ -77,7 +77,7 @@ type
     // aQuery - regexp text to search
     // aCurrentFile - file, that will be used for search index
     function Search(aParams: TCodeSearchQueryParams; const aIndexSearchPath: array of string;
-        out Results: TSearchResults): TCodeSearchEngineError;
+        Results: TSearchResults): TCodeSearchEngineError;
   end;
 
 implementation
@@ -182,10 +182,16 @@ end;
 { TCodeSearchEngine }
 
 function TCodeSearchEngine.Search(aParams: TCodeSearchQueryParams; const aIndexSearchPath: array of string;
-    out Results: TSearchResults): TCodeSearchEngineError;
+    Results: TSearchResults): TCodeSearchEngineError;
 var
   IndexFile: string;
 begin
+  if Results = nil then
+  begin
+    Result := csee_Unknown;
+    Exit;
+  end;
+
   IndexFile := SearchIndexFile(aIndexSearchPath);
   if IndexFile = '' then
   begin
@@ -258,7 +264,7 @@ begin
 end;
 
 function TCodeSearchEngine.DoSearchMultiThread2(aParams: TCodeSearchQueryParams; aIndexFile: string;
-    out Results: TSearchResults): TCodeSearchEngineError;
+    Results: TSearchResults): TCodeSearchEngineError;
 var
   Pipeline: IOmniPipeline;
   OmniVal: TOmniValue;
@@ -283,8 +289,6 @@ begin
     begin
       if Pipeline.Output.TryTake(OmniVal, 10) and OmniVal.IsOwnedObject then
       begin
-        if Results = nil then
-          Results := TSearchResults.Create;
         Item := OmniVal.AsOwnedObject as TSearchItem;
         OmniVal.OwnsObject := False;
         OmniVal.Clear;
@@ -300,7 +304,11 @@ begin
       if ResultsCount mod math.Max(1, FParams.UpdateProgressEachItems) = 0 then
         FProgress.Info := IntToStr(ResultsCount) + ' results found in ' + IntToStr(TotalFiles.Count) + ' files.';
       if FProgress.Cancelled then
+      begin
         Pipeline.Cancel;
+        Pipeline.WaitFor(INFINITE);
+        break;
+      end;
     end;
 
     if FProgress.Cancelled then

@@ -80,7 +80,7 @@ implementation
 uses
   SysUtils, ioutils, masks, str_utils, generics.defaults,
   regularexpressionscore,
-  OtlCollections, collections.array_utils, opt_impl, collections.sets;
+  OtlCollections, collections.array_utils, opt_impl, collections.sets, collections.common;
 
 type
   TRefreshWorkItemResult = class
@@ -293,7 +293,7 @@ end;
 
 function TBaseOpenFileHandler.GetAdditionFileList: IEnumerable<string>;
 begin
-  Result := nil;
+  Result := TCollectionsUtils.Empty<string>;
 end;
 
 function TBaseOpenFileHandler.GetFileMasks: TArray<string>;

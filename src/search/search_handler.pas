@@ -79,12 +79,11 @@ type
 
   TWorkItemResult = class
   public
-    List: TVMSearchResultsList;
     Errors: TStringList;
     ErrorCode: TCodeSearchEngineError;
     SearchTime: Cardinal;
 
-    constructor Create(aErrorCode: TCodeSearchEngineError; aList: TVMSearchResultsList; aErrors: TStringList);
+    constructor Create(aErrorCode: TCodeSearchEngineError; aErrors: TStringList);
     destructor Destroy; override;
   end;
 
@@ -118,6 +117,14 @@ type
     procedure EndProgress; override;
   end;
 
+  TSearchResultsListener = class(TInterfacedObject, ICSSearchResultsListener)
+  private
+    FDestInfo: IObjectHolder<TSearchInfo>;
+  public
+    constructor Create(aDestInfo: IObjectHolder<TSearchInfo>);
+    procedure ItemAdded(aItem: TSearchItem);
+  end;
+
 
 function GetErrorMsg(aCode: TCodeSearchEngineError): string;
 begin
@@ -139,32 +146,15 @@ begin
   end;
 end;
 
-function ConvertResults(aRes: TSearchResults): TVMSearchResultsList;
-var
-  I: Integer;
-  Item: TSearchItem;
-  DestItem: TVMSearchResultsItem;
+function ConvertItem(aItem: TSearchItem): TVMSearchResultsItem;
 begin
-  Result := nil;
-  if aRes = nil then
-    Exit;
-
-  for I := 0 to aRes.Count - 1 do
-  begin
-    Item := aRes[I];
-    if Result = nil then
-      Result := TVMSearchResultsList.Create;
-
-    DestItem := TVMSearchResultsItem.Create;
-    DestItem.FileName := ExtractFileName(Item.FilePath);
-    DestItem.FilePath := ExtractFilePath(Item.FilePath);
-    DestItem.Line := Item.LineNumber;
-    DestItem.Text := Item.FoundText;
-    DestItem.Rating := Item.Rating;
-    DestItem.RawText := Item.RawText;
-
-    Result.AddItem(DestItem);
-  end;
+  Result := TVMSearchResultsItem.Create;
+  Result.FileName := ExtractFileName(aItem.FilePath);
+  Result.FilePath := ExtractFilePath(aItem.FilePath);
+  Result.Line := aItem.LineNumber;
+  Result.Text := aItem.FoundText;
+  Result.Rating := aItem.Rating;
+  Result.RawText := aItem.RawText;
 end;
 
 procedure TSearchHandler.PerformSearch(const workItem: IOmniWorkItem);
@@ -206,11 +196,11 @@ begin
 
     Engine := TCodeSearchEngine.Create(Progress, ValidPaths);
 
+    SearchResults := TSearchResults.Create;
+    SearchResults.Listeners.RegisterListener(TSearchResultsListener.Create(Data.DestInfo) as ICSSearchResultsListener);
+
     ErrorCode := Engine.Search(Data.Params, GetIndexSearchPaths, SearchResults);
-    if SearchResults <> nil then
-      WorkItemRes := TWorkItemResult.Create(ErrorCode, ConvertResults(SearchResults), SearchResults.AcquireErrors)
-    else
-      WorkItemRes := TWorkItemResult.Create(ErrorCode, ConvertResults(SearchResults), nil);
+    WorkItemRes := TWorkItemResult.Create(ErrorCode, SearchResults.AcquireErrors);
     WorkItemRes.SearchTime := Stopwatch.ElapsedMilliseconds;
     Res.AsOwnedObject := WorkItemRes;
     workItem.Result := Res;
@@ -226,6 +216,7 @@ procedure TSearchHandler.OnSearchRequestDone(const Sender: IOmniBackgroundWorker
 var
   Data: TWorkItemData;
   ResData: TWorkItemResult;
+  List: TVMSearchResultsList;
 begin
   if FWorkItems.ContainsKey(workItem.UniqueID) then
     FWorkItems.Remove(workItem.UniqueID);
@@ -257,9 +248,10 @@ begin
     else if workItem.CancellationToken.IsSignalled then
     begin
       Data.DestInfo.Obj.Status.postValue(ssc_Cancelled);
-      if ResData.List <> nil then
+      List := Data.DestInfo.Obj.Results.Value;
+      if List.Count > 0 then
         Data.DestInfo.Obj.StatusText.postValue(Format('Cancelled. %d results in %d files. Elapsed time: %d ms.', [
-            ResData.List.Count, ResData.List.CalculateFilesCount, ResData.SearchTime]))
+            List.Count, List.CalculateFilesCount, ResData.SearchTime]))
       else
         Data.DestInfo.Obj.StatusText.postValue(Format('Cancelled. Elapsed time: %d ms.', [ResData.SearchTime]));
     end
@@ -271,15 +263,14 @@ begin
     end
     else
     begin
+      List := Data.DestInfo.Obj.Results.Value;
       Data.DestInfo.Obj.Status.postValue(ssc_Successful);
       Data.DestInfo.Obj.StatusText.postValue(Format('Done. %d results in %d files. Elapsed time: %d ms.', [
-          ResData.List.Count, ResData.List.CalculateFilesCount, ResData.SearchTime]));
+          List.Count, List.CalculateFilesCount, ResData.SearchTime]));
     end;
 
     if ResData <> nil then
     begin
-      Data.DestInfo.Obj.Results.postValue(ResData.List);
-      ResData.List := nil;
       Data.DestInfo.Obj.Errors.postValue(ResData.Errors);
       ResData.Errors := nil;
     end;
@@ -379,7 +370,7 @@ begin
     if Query = nil then
       Exit;
 
-    DestInfo := TSearchInfo.Create(Query.QueryText, nil);
+    DestInfo := TSearchInfo.Create(Query.QueryText);
     OmniData.AsOwnedObject := TWorkItemData.Create(Query, DestInfo);
     Query := nil;
     WorkItem := FSearchWorker.CreateWorkItem(OmniData);
@@ -535,18 +526,15 @@ end;
 
 { TWorkItemResult }
 
-constructor TWorkItemResult.Create(aErrorCode: TCodeSearchEngineError; aList: TVMSearchResultsList;
-    aErrors: TStringList);
+constructor TWorkItemResult.Create(aErrorCode: TCodeSearchEngineError; aErrors: TStringList);
 begin
   inherited Create;
   ErrorCode := aErrorCode;
-  List := aList;
   Errors := aErrors;
 end;
 
 destructor TWorkItemResult.Destroy;
 begin
-  FreeAndNil(List);
   FreeAndNil(Errors);
   inherited;
 end;
@@ -586,6 +574,25 @@ procedure TDelegatedSearchResultsListener.SearchInfoRemoved(aIndex: Integer);
 begin
   if Assigned(FOnSearchInfoRemoved) then
     FOnSearchInfoRemoved(aIndex);
+end;
+
+{ TSearchResultsListener }
+
+constructor TSearchResultsListener.Create(aDestInfo: IObjectHolder<TSearchInfo>);
+begin
+  inherited Create;
+  FDestInfo := aDestInfo;
+end;
+
+procedure TSearchResultsListener.ItemAdded(aItem: TSearchItem);
+var
+  List: TVMSearchResultsList;
+begin
+  if not FDestInfo.IsAlive then
+    Exit;
+
+  List := FDestInfo.Obj.Results.Value;
+  List.AddItem(ConvertItem(aItem));
 end;
 
 end.
