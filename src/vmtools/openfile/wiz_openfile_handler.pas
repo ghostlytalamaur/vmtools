@@ -95,9 +95,9 @@ end;
 
 procedure TOpenFileHandler.OpenFile(const aFilePath: string);
 begin
-  inherited;
   if TVMOtaUtils.GetCurrentOpenFileName <> aFilePath then
     TGXOtaUtils.GxOtaGoToFileLineColumn(aFilePath, -1);
+  inherited;
 end;
 
 { TOpenFileHandlerParams }

@@ -20,7 +20,8 @@ type
     function GetValues: IEnumerable<V>;
 
     function ContainsKey(const aKey: K): Boolean;
-    procedure Add(const aKey: K; const aValue: V);
+    procedure Add(const aKey: K; const aValue: V); overload;
+    procedure Add(aEnumerable: IEnumerable<TPair<K, V>>); overload;
     procedure Remove(const aKey: K);
     procedure Clear;
     function TryGetValue(const aKey: K; out Value: V): Boolean;
@@ -46,10 +47,12 @@ type
   protected
     function DoGetEnumerator: IEnumerator<TPair<K, V>>; override;
   public
-    constructor Create;
+    constructor Create; overload;
+    constructor Create(aEnumerable: IEnumerable<TPair<K, V>>); overload;
     destructor Destroy; override;
     function ContainsKey(const aKey: K): Boolean;
-    procedure Add(const aKey: K; const aValue: V);
+    procedure Add(const aKey: K; const aValue: V); overload;
+    procedure Add(aEnumerable: IEnumerable<TPair<K, V>>); overload;
     procedure Remove(const aKey: K);
     procedure Clear;
     function TryGetValue(const aKey: K; out Value: V): Boolean;
@@ -168,6 +171,15 @@ begin
   FDict.Obj.AddOrSetValue(aKey, aValue);
 end;
 
+procedure THashMap<K, V>.Add(aEnumerable: IEnumerable<TPair<K, V>>);
+var
+  P: TPair<K, V>;
+begin
+  if aEnumerable <> nil then
+    for P in aEnumerable do
+      Add(P.Key, P.Value);
+end;
+
 procedure THashMap<K, V>.Clear;
 begin
   FDict.Obj.Clear;
@@ -176,6 +188,12 @@ end;
 function THashMap<K, V>.ContainsKey(const aKey: K): Boolean;
 begin
   Result := FDict.Obj.ContainsKey(aKey);
+end;
+
+constructor THashMap<K, V>.Create(aEnumerable: IEnumerable<TPair<K, V>>);
+begin
+  Create;
+  Add(aEnumerable);
 end;
 
 constructor THashMap<K, V>.Create;

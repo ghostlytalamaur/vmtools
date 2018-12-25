@@ -80,7 +80,7 @@ implementation
 uses
   SysUtils, ioutils, masks, str_utils, generics.defaults,
   regularexpressionscore,
-  OtlCollections, collections.array_utils, opt_impl, collections.sets, collections.common;
+  OtlCollections, collections.array_utils, opt_impl, collections.sets, collections.common, vm.debug;
 
 type
   TRefreshWorkItemResult = class
@@ -180,6 +180,7 @@ begin
   if aPriority = nil then
     Exit;
 
+  LogEnterLeave('TBaseOpenFileHandler.StorePriority');
   Ini := TIniFile.Create(IncludeTrailingPathDelimiter(ExtractFilePath(GetModuleName(HInstance))) + 'filespriority.ini');
   try
     Ini.EraseSection('OpenFilePriority');
@@ -236,18 +237,23 @@ end;
 function TBaseOpenFileHandler.GetFilePaths(aWorkItem: IOmniWorkItem): TList<TFilePathRec>;
 var
   FilePathsSet: ISet<string>;
+  UpCaseFilePathsSet: ISet<string>;
   FileMasks: TArray<string>;
 
   procedure TryAppendFile(const aFilePath: string);
+  var
+    UpCaseFilePath: string;
   begin
-    if FilePathsSet.Contains(aFilePath) or not TStrUtils.MatchesMasks(aFilePath, FileMasks) then
+    UpCaseFilePath := UpperCase(aFilePath);
+    if UpCaseFilePathsSet.Contains(UpCaseFilePath) or not TStrUtils.MatchesMasks(aFilePath, FileMasks) then
       Exit;
 
     FilePathsSet.Add(aFilePath);
+    UpCaseFilePathsSet.Add(UpCaseFilePath);
   end;
 
 var
-  DirPath: string;
+  DirPath, UpCaseDirpath: string;
   FilePath: string;
   DirPaths: IEnumerable<string>;
   Processed: ISet<string>;
@@ -255,6 +261,7 @@ begin
   Result := nil;
   Processed := THashSet<string>.Create(10000);
   FilePathsSet := THashSet<string>.Create(10000);
+  UpCaseFilePathsSet := THashSet<string>.Create(10000);
   DirPaths := GetDirPaths;
   FileMasks := GetFileMasks;
   for DirPath in DirPaths do
@@ -262,10 +269,11 @@ begin
     if aWorkItem.CancellationToken.IsSignalled then
       Exit;
 
-    if Processed.Contains(DirPath) or not TDirectory.Exists(DirPath) then
+    UpCaseDirpath := UpperCase(DirPath);
+    if Processed.Contains(UpCaseDirpath) or not TDirectory.Exists(UpCaseDirpath) then
       Continue;
 
-    Processed.Add(DirPath);
+    Processed.Add(UpCaseDirpath);
     for FilePath in TDirectory.GetFiles(DirPath, '*', TSearchOption.soTopDirectoryOnly) do
     begin
       if aWorkItem.CancellationToken.IsSignalled then
@@ -468,9 +476,15 @@ begin
 end;
 
 procedure TBaseOpenFileHandler.OpenFile(const aFilePath: string);
+var
+  PriorityCopy: IMap<string, Integer>;
 begin
   Priority[aFilePath] := Priority[aFilePath] + 1;
-  StorePriority(Priority);
+  PriorityCopy := THashMap<string, Integer>.Create(Priority);
+  Parallel.Async(procedure
+  begin
+    StorePriority(PriorityCopy)
+  end);
 end;
 
 function TBaseOpenFileHandler.ValidateFileList: Boolean;
