@@ -17,7 +17,9 @@ uses
   search_frame in '..\..\src\search\search_frame.pas' {SearchResultFrame: TFrame},
   vm.debug in '..\..\src\common\vm.debug.pas',
   collections.sets in '..\..\src\common\collections.sets.pas',
-  vm.memodlg in '..\..\src\common\vm.memodlg.pas' {MemoDialog};
+  vm.memodlg in '..\..\src\common\vm.memodlg.pas' {MemoDialog},
+  search_table in '..\..\src\search\search_table.pas',
+  vm.gui.control_updater in '..\..\src\common\vm.gui.control_updater.pas';
 
 {$R *.res}
 

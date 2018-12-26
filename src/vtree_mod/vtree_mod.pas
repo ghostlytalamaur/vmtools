@@ -185,10 +185,30 @@ begin
 end;
 
 procedure TExtVirtualStringTree.SortTree(Column: TColumnIndex; Direction: TSortDirection; DoInit: Boolean);
+var
+  OldR, NewR: TRect;
+  Run: PVirtualNode;
 begin
+  if Assigned(FocusedNode) then
+  begin
+    // make sure all parents of the node are expanded
+    Run := FocusedNode.Parent;
+    while Run <> RootNode do
+    begin
+      if not (vsExpanded in Run.States) then
+        ToggleNode(Run);
+      Run := Run.Parent;
+    end;
+    OldR := GetDisplayRect(FocusedNode, Header.MainColumn, True);
+  end;
+
   inherited;
-  if FocusedNode <> nil then
-    ScrollIntoView(FocusedNode, False);
+
+  if Assigned(FocusedNode) then
+  begin
+    NewR := GetDisplayRect(FocusedNode, Header.MainColumn, True);
+    OffsetY := OffsetY - (NewR.Top - OldR.Top);
+  end;
 end;
 
 procedure TExtVirtualStringTree.LoadSetting(aParams: TExtVirtualTreeParams);

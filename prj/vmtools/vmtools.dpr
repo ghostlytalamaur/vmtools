@@ -69,7 +69,9 @@ uses
   csplg_query_params in '..\..\src\search\engine_codesearch\csplg_query_params.pas',
   csplg_search in '..\..\src\search\engine_codesearch\csplg_search.pas',
   csplg_types in '..\..\src\search\engine_codesearch\csplg_types.pas',
-  vm.memodlg in '..\..\src\common\vm.memodlg.pas' {MemoDialog};
+  vm.memodlg in '..\..\src\common\vm.memodlg.pas' {MemoDialog},
+  vm.gui.control_updater in '..\..\src\common\vm.gui.control_updater.pas',
+  search_table in '..\..\src\search\search_table.pas';
 
 {$R *.res}
 

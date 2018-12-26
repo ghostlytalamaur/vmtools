@@ -36,15 +36,8 @@ object SearchResultFrame: TSearchResultFrame
     TreeOptions.MiscOptions = [toAcceptOLEDrop, toFullRepaintOnResize, toInitOnSave, toToggleOnDblClick, toWheelPanning, toNodeHeightResize, toEditOnClick]
     TreeOptions.PaintOptions = [toHideFocusRect, toShowButtons, toShowDropmark, toThemeAware, toUseBlendedImages]
     TreeOptions.SelectionOptions = [toFullRowSelect]
-    OnCanSplitterResizeNode = vstResultsCanSplitterResizeNode
     OnChange = vstResultsChange
-    OnCompareNodes = vstResultsCompareNodes
     OnDblClick = vstResultsDblClick
-    OnDrawText = vstResultsDrawText
-    OnGetText = vstResultsGetText
-    OnInitNode = vstResultsInitNode
-    OnNodeHeightTracking = vstResultsNodeHeightTracking
-    OnStateChange = vstResultsStateChange
     Columns = <
       item
         Position = 0

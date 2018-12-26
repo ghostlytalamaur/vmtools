@@ -2,7 +2,7 @@ unit vm_wiz_search_dockform;
 interface
 
 uses
-  vmsys, Forms, search_frame, inifiles, vm_custom_dock_frm, search_handler;
+  vmsys, Forms, search_frame, inifiles, vm_custom_dock_frm, search_handler, search_table;
 
 type
   IVMSearchResultDockForm = interface(IVMCustomDockForm)

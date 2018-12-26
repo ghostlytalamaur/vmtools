@@ -7,51 +7,23 @@ interface
 uses
   vmsys, Windows, Messages, SysUtils, Variants, Classes, Graphics, Controls, Forms,
   Dialogs,
-  StdCtrls, Grids, Menus, vtree_mod, ComCtrls,
-  search_types, generics.collections, IniFiles,
+  StdCtrls, Menus, vtree_mod,
+  search_types, generics.collections, generics.defaults, IniFiles,
   Tabs, Types, VirtualTrees, observer, search_handler,
-  ActnList, Buttons, ExtCtrls
+  ActnList, Buttons, ExtCtrls, search_table
 {$IFNDEF DELPHIXE}, System.Actions{$ENDIF}
-  ;
+  , vm.gui.control_updater;
 
 type
-  TVirtualStringTree = class(TExtVirtualStringTree);
-  TSearchResultFrameSettings = class(TExtVirtualTreeParams)
-  end;
-
-  TFormatTextDrawer = class(TObject)
-  private const
-    cstEscReset        = #$1B + '[0m';
-    cstEscBold         = #$1B + '[1m';
-  private
-    function TextExtent(aCanvas: TCanvas; aText: TStringList): TSize;
-    procedure SetCanvasStyle(aCanvas: TCanvas; const aEscSeq: string);
-  public
-    function Draw(const aText: string; const aCanvas: TCanvas; aRect: TRect): Boolean;
-  end;
-
+  TVirtualStringTree = class(TSearchResultsVirtualTree);
   TResulsInfoData = class(TExtObject)
   strict private
     FInfo: TSearchInfo;
   public
-    SelectedIdx: Cardinal;
+    SelectedIdx: Integer;
 
     constructor Create(aSelIdx: Integer; aInfo: TSearchInfo);
     property Info: TSearchInfo read FInfo;
-  end;
-
-  TControlUpdater = class
-  private
-    FOnUpdateControl: TProc;
-    FTimer: TTimer;
-    FShouldUpdate: Integer;
-
-    procedure DoUpdate;
-    procedure OnTimer(aSender: TObject);
-  public
-    constructor Create(aOnUpdateControl: TProc);
-    destructor Destroy; override;
-    procedure RequestUpdate;
   end;
 
   TSearchResultFrameClass = class of TSearchResultFrame;
@@ -68,28 +40,17 @@ type
     btnShowErrors: TSpeedButton;
     btnCancel: TSpeedButton;
     lblStatus: TLabel;
-    procedure vstResultsInitNode(Sender: TBaseVirtualTree; ParentNode, Node: PVirtualNode;
-      var InitialStates: TVirtualNodeInitStates);
-    procedure vstResultsGetText(Sender: TBaseVirtualTree; Node: PVirtualNode; Column: TColumnIndex;
-      TextType: TVSTTextType; var CellText: string);
     procedure actCloseTabExecute(Sender: TObject);
     procedure btnCancelClick(Sender: TObject);
     procedure btnShowErrorsClick(Sender: TObject);
     procedure vstResultsDblClick(Sender: TObject);
-    procedure vstResultsCompareNodes(Sender: TBaseVirtualTree; Node1, Node2: PVirtualNode; Column: TColumnIndex;
-      var Result: Integer);
-    procedure vstResultsDrawText(Sender: TBaseVirtualTree; TargetCanvas: TCanvas; Node: PVirtualNode;
-      Column: TColumnIndex; const Text: string; const CellRect: TRect; var DefaultDraw: Boolean);
     procedure FrameEnter(Sender: TObject);
     procedure miCancellCurrentClick(Sender: TObject);
     procedure miShowHeaderClick(Sender: TObject);
     procedure pmTreeViewPopup(Sender: TObject);
-    procedure tbcTabsChange(Sender: TObject; NewTab: Integer; var AllowChange:
-        Boolean);
+    procedure tbcTabsChange(Sender: TObject; NewTab: Integer; var AllowChange: Boolean);
     procedure vstResultsCanSplitterResizeNode(Sender: TBaseVirtualTree; P: TPoint; Node: PVirtualNode;
       Column: TColumnIndex; var Allowed: Boolean);
-    procedure vstResultsNodeHeightTracking(Sender: TBaseVirtualTree; Node: PVirtualNode; Column: TColumnIndex;
-      Shift: TShiftState; var TrackPoint: TPoint; P: TPoint; var Allowed: Boolean);
     procedure vstResultsChange(Sender: TBaseVirtualTree; Node: PVirtualNode);
     procedure vstResultsStateChange(Sender: TBaseVirtualTree; Enter, Leave: TVirtualTreeStates);
   private
@@ -97,29 +58,21 @@ type
     FHandler: IObjectHolder<TSearchHandler>;
     FHandlerListener: ISearchResultsListener;
     FResults: TList<TResulsInfoData>;
-    FTextDrawer: TFormatTextDrawer;
     FCurInfoIndex: Integer;
     FStatusObservers: TList<IDataObserver<TSearchStatusCode>>;
     FStatusTextObserver: IDataObserver<string>;
-    FResultsObserver: IDataObserver<TVMSearchResultsList>;
     FErrorsObserver: IDataObserver<TStringList>;
-    FResultsListObserver: IVMSearchResultsListListener;
-    FListUpdater: TControlUpdater;
     FStatusTextUpdater: TControlUpdater;
 
     procedure OnSearchInfoAdded(aIndex: Integer);
     procedure OnSearchInfoRemoved(aIndex: Integer);
     procedure OnStatusTextChanged(aStatusText: string);
-    procedure OnNewResults(aList: TVMSearchResultsList);
-    procedure OnNewItemInResultsList(aItem: TVMSearchResultsItem);
     procedure OnErrorsChanged(aErrors: TStringList);
-
-    function GetNodeData(aNode: PVirtualNode): TVMSearchResultsItem;
 
     procedure RemoveStatusObservers;
     procedure UpdateStatus;
-    procedure UpdateResults;
     procedure SetCurInfo(aIndex: Integer);
+    procedure SelectNode(aIndex: Integer);
     function GetCurInfo: TResulsInfoData;
     property CurInfo: TResulsInfoData read GetCurInfo;
     procedure OnKeyDownEvent(Sender: TObject; var Key: Word; Shift: TShiftState);
@@ -142,15 +95,6 @@ uses
 
 {$R *.dfm}
 
-const
-  cstFirstColumn = 0;
-  cstColText     = 0;
-  cstColFile     = 1;
-  cstColLine     = 2;
-  cstColRating   = 3;
-  cstColPath     = 4;
-  cstLastColumnt = 4;
-
 type
   TStatusObserver = class(TDelegatedDataObserver<TSearchStatusCode>)
   private
@@ -159,14 +103,6 @@ type
     procedure OnChanged(aData: TSearchStatusCode);
   public
     constructor Create(aFrame: TSearchResultFrame; aSearchId: Int64);
-  end;
-
-  TVMSearchResultsListListener = class(TInterfacedObject, IVMSearchResultsListListener)
-  private
-    FOnItemAdded: TProc<TVMSearchResultsItem>;
-  public
-    constructor Create(aOnItemAdded: TProc<TVMSearchResultsItem>);
-    procedure ItemAdded(aItem: TVMSearchResultsItem);
   end;
 
 function GetTabText(aInfo: TSearchInfo): string;
@@ -264,17 +200,6 @@ begin
   FStatusTextUpdater.RequestUpdate;
 end;
 
-procedure TSearchResultFrame.OnNewResults(aList: TVMSearchResultsList);
-begin
-  aList.Listeners.RegisterListener(FResultsListObserver);
-  FListUpdater.RequestUpdate;
-end;
-
-procedure TSearchResultFrame.OnNewItemInResultsList(aItem: TVMSearchResultsItem);
-begin
-  FListUpdater.RequestUpdate;
-end;
-
 procedure TSearchResultFrame.OnErrorsChanged(aErrors: TStringList);
 begin
   if (aErrors = nil) or (aErrors.Count <= 0) then
@@ -299,14 +224,10 @@ begin
   FStatusObservers := TList<IDataObserver<TSearchStatusCode>>.Create;
   FHandlerListener := TDelegatedSearchResultsListener.Create(OnSearchInfoAdded, OnSearchInfoRemoved);
   FStatusTextObserver := TDelegatedDataObserver<string>.Create(OnStatusTextChanged);
-  FResultsObserver := TDelegatedDataObserver<TVMSearchResultsList>.Create(OnNewResults);
   FErrorsObserver := TDelegatedDataObserver<TStringList>.Create(OnErrorsChanged);
-  FResultsListObserver := TVMSearchResultsListListener.Create(OnNewItemInResultsList);
 
-  FListUpdater := TControlUpdater.Create(UpdateResults);
   FStatusTextUpdater := TControlUpdater.Create(UpdateStatus);
 
-  FTextDrawer := TFormatTextDrawer.Create;
   vstResults.Clear;
   vstResults.Colors.TreeLineColor := vstResults.Colors.BackGroundColor;
   vstResults.DefaultNodeHeight := 21;
@@ -332,8 +253,6 @@ begin
   SetCurInfo(-1);
   SetHandler(nil);
   FreeAndNil(FStatusObservers);
-  FreeAndNil(FTextDrawer);
-  FreeAndNil(FListUpdater);
   FreeAndNil(FStatusTextUpdater);
   FreeAndNil(FResults);
   inherited;
@@ -389,38 +308,23 @@ begin
   lblStatus.Visible := lblStatus.Caption <> '';
 end;
 
-procedure TSearchResultFrame.UpdateResults;
+procedure TSearchResultFrame.SelectNode(aIndex: Integer);
 var
-  CurNode, Node: PVirtualNode;
+  Node, CurNode: PVirtualNode;
 begin
-  if (CurInfo = nil) or (CurInfo.Info = nil) or (CurInfo.Info.Results.getValue = nil) then
-  begin
-    vstResults.Clear;
-    Exit;
-  end;
+  Node := nil;
+  if CurInfo.SelectedIdx <= 0 then
+    Node := vstResults.GetFirstChild(vstResults.RootNode)
+  else
+    for CurNode in vstResults.Nodes do
+      if CurInfo.SelectedIdx = CurNode.GetData<Integer> then
+      begin
+        Node := CurNode;
+        break;
+      end;
 
-  vstResults.BeginUpdate;
-  try
-    vstResults.RootNodeCount := CurInfo.Info.Results.getValue.Count;
-    if CurInfo.Info.Results.getValue.Count <= 0 then
-      Exit;
-
-    Node := nil;
-    if CurInfo.SelectedIdx <= 0 then
-      Node := vstResults.GetFirstChild(vstResults.RootNode)
-    else
-      for CurNode in vstResults.Nodes do
-        if CurInfo.SelectedIdx = CurNode.Index then
-        begin
-          Node := CurNode;
-          break;
-        end;
-
-    if Node <> nil then
-      vstResults.Selected[Node] := True;
-  finally
-    vstResults.EndUpdate;
-  end;
+  if Node <> nil then
+    vstResults.Selected[Node] := True;
 end;
 
 procedure TSearchResultFrame.SetCurInfo(aIndex: Integer);
@@ -430,9 +334,6 @@ begin
 
   if (CurInfo <> nil) and (CurInfo.Info <> nil) then
   begin
-    CurInfo.Info.Results.RemoveObserver(FResultsObserver);
-    if CurInfo.Info.Results.Value <> nil then
-      CurInfo.Info.Results.Value.Listeners.RemoveListener(FResultsListObserver);
     CurInfo.Info.StatusText.RemoveObserver(FStatusTextObserver);
     CurInfo.Info.Errors.RemoveObserver(FErrorsObserver);
   end;
@@ -440,19 +341,20 @@ begin
   FCurInfoIndex := aIndex;
   if (CurInfo <> nil) and (CurInfo.Info <> nil) then
   begin
-    CurInfo.Info.Results.RegisterObserver(FResultsObserver);
     CurInfo.Info.StatusText.RegisterObserver(FStatusTextObserver);
     CurInfo.Info.Errors.RegisterObserver(FErrorsObserver);
     btnCancel.Visible := CurInfo.Info.Status.getValue in [ssc_Queued, ssc_Searching];
+
+    vstResults.SetData(CurInfo.Info.Results);
+    SelectNode(CurInfo.SelectedIdx);
   end
   else
   begin
+    vstResults.SetData(nil);
     FStatusTextUpdater.RequestUpdate;
     btnShowErrors.Visible := False;
     btnCancel.Visible := False;
   end;
-
-  FListUpdater.RequestUpdate;
 end;
 
 procedure TSearchResultFrame.SetHandler(aHandler: TSearchHandler);
@@ -495,54 +397,7 @@ end;
 procedure TSearchResultFrame.vstResultsChange(Sender: TBaseVirtualTree; Node: PVirtualNode);
 begin
   if (Node <> nil) and vstResults.Selected[Node] and (CurInfo <> nil) then
-     CurInfo.SelectedIdx := Node.Index;
-end;
-
-procedure TSearchResultFrame.vstResultsCompareNodes(Sender: TBaseVirtualTree; Node1, Node2: PVirtualNode;
-  Column: TColumnIndex; var Result: Integer);
-
-  procedure AppendOrder(var Order: TArray<Integer>; var Idx: Integer; aColumn: Integer);
-  begin
-    if Column <> aColumn then
-    begin
-      if Idx >= Length(Order) then
-        SetLength(Order, Idx + 1); // for safety
-      Order[Idx] := aColumn;
-      Inc(Idx);
-    end;
-  end;
-
-var
-  Item1, Item2: TVMSearchResultsItem;
-  SortOrder: TArray<Integer>;
-  Col, I: Integer;
-begin
-  Item1 := GetNodeData(Node1);
-  Item2 := GetNodeData(Node2);
-  Result := 0;
-  if (Item1 = nil) or (Item2 = nil) then
-    Exit;
-
-  SetLength(SortOrder, 4);
-  SortOrder[0] := Column;
-  I := 1;
-  AppendOrder(SortOrder, I, cstColRating);
-  AppendOrder(SortOrder, I, cstColPath);
-  AppendOrder(SortOrder, I, cstColFile);
-  AppendOrder(SortOrder, I, cstColLine);
-  AppendOrder(SortOrder, I, cstColText);
-  for Col in SortOrder do
-  begin
-    case Col of
-      cstColFile: Result := CompareText(Item1.FileName, Item2.FileName);
-      cstColPath: Result := CompareText(Item1.FilePath, Item2.FilePath);
-      cstColText: Result := CompareText(Item1.Text, Item2.Text);
-      cstColLine: Result := Item1.Line - Item2.Line;
-      cstColRating: Result := Item1.Rating - Item2.Rating;
-    end;
-    if Result <> 0 then
-      Exit;
-  end;
+     CurInfo.SelectedIdx := Node.GetData<Integer>;
 end;
 
 procedure TSearchResultFrame.vstResultsDblClick(Sender: TObject);
@@ -554,64 +409,6 @@ procedure TSearchResultFrame.miCancellCurrentClick(Sender: TObject);
 begin
   if FHandler.IsAlive and (CurInfo <> nil) and (CurInfo.Info <> nil) then
     FHandler.Obj.CancellSearch(CurInfo.Info.SearchId);
-end;
-
-procedure TSearchResultFrame.vstResultsDrawText(Sender: TBaseVirtualTree; TargetCanvas: TCanvas; Node: PVirtualNode;
-  Column: TColumnIndex; const Text: string; const CellRect: TRect; var DefaultDraw: Boolean);
-var
-  Item: TVMSearchResultsItem;
-begin
-  Item := GetNodeData(Node);
-  if Item = nil then
-    Exit;
-
-  case Column of
-    cstColText:
-    begin
-      DefaultDraw := not FTextDrawer.Draw(Item.RawText, TargetCanvas, CellRect);
-    end;
-  end;
-end;
-
-procedure TSearchResultFrame.vstResultsGetText(Sender: TBaseVirtualTree; Node: PVirtualNode; Column: TColumnIndex;
-  TextType: TVSTTextType; var CellText: string);
-var
-  Item: TVMSearchResultsItem;
-begin
-  Item := GetNodeData(Node);
-  if Item = nil then
-    Exit;
-
-  case Column of
-    cstColFile: CellText := Item.FileName;
-    cstColPath: CellText := Item.FilePath;
-    cstColText: CellText := Item.Text;
-    cstColLine: CellText := IntToStr(Item.Line);
-    cstColRating: CellText := IntToStr(Item.Rating);
-  end;
-end;
-
-function TSearchResultFrame.GetNodeData(aNode: PVirtualNode): TVMSearchResultsItem;
-begin
-  if (CurInfo <> nil) and (CurInfo.Info <> nil) and (CurInfo.Info.Results.Value <> nil) then
-    Result := CurInfo.Info.Results.Value.Items[aNode.GetData<Integer>]
-  else
-    Result := nil;
-end;
-
-procedure TSearchResultFrame.vstResultsInitNode(Sender: TBaseVirtualTree; ParentNode, Node: PVirtualNode;
-  var InitialStates: TVirtualNodeInitStates);
-begin
-  if (CurInfo <> nil) and (CurInfo.Info <> nil) and (CurInfo.Info.Results.Value <> nil) then
-    Node.SetData<Integer>(Node.Index);
-end;
-
-procedure TSearchResultFrame.vstResultsNodeHeightTracking(Sender: TBaseVirtualTree; Node: PVirtualNode;
-  Column: TColumnIndex; Shift: TShiftState; var TrackPoint: TPoint; P: TPoint; var Allowed: Boolean);
-begin
-  if P.Y - TrackPoint.Y < TExtVirtualTreeParams.cstMinNodeHeight then
-    TrackPoint.Y := P.Y - TExtVirtualTreeParams.cstMinNodeHeight;
-  vstResults.UpdateNodesHeight(Max(TExtVirtualTreeParams.cstMinNodeHeight, P.Y - TrackPoint.Y));
 end;
 
 procedure TSearchResultFrame.OnKeyDownEvent(Sender: TObject; var Key: Word; Shift: TShiftState);
@@ -661,7 +458,7 @@ procedure TSearchResultFrame.OpenCurrentFile;
 var
   Item: TVMSearchResultsItem;
 begin
-  Item := GetNodeData(vstResults.FocusedNode);
+  Item := vstResults.GetNodeData(vstResults.FocusedNode);
   if Item = nil then
     Exit;
 
@@ -723,95 +520,6 @@ begin
 end;
 
 
-{ TFormatTextDrawer }
-
-function TFormatTextDrawer.TextExtent(aCanvas: TCanvas; aText: TStringList): TSize;
-var
-  Line: string;
-  CurSize: TSize;
-begin
-  Result.cx := 0;
-  Result.cY := 0;
-  for Line in aText do
-  begin
-    CurSize := aCanvas.TextExtent(Line);
-    Result.cx := Max(Result.cx, CurSize.cx);
-    Result.cy := Result.cy + CurSize.cy;
-  end;
-end;
-
-procedure TFormatTextDrawer.SetCanvasStyle(aCanvas: TCanvas; const aEscSeq: string);
-begin
-  if aEscSeq = cstEscBold then
-    aCanvas.Font.Style := [fsBold]
-  else if aEscSeq = cstEscReset then
-    aCanvas.Font.Style := [];
-end;
-
-function TFormatTextDrawer.Draw(const aText: string; const aCanvas: TCanvas; aRect: TRect): Boolean;
-const
-  cstMargin = 16;
-var
-  Lines: TStringList;
-  Len, AlreadyDrawedLen, DrawLen, RectW, EscOffset, EscPos, I, X, Y: Integer;
-  TotalTextSize, TextSize: TSize;
-  Line, CleanLine, EscSeq: string;
-begin
-  Result := True;
-  Lines := TStringList.Create;
-  try
-    Lines.Text := aText;
-    TotalTextSize := TextExtent(aCanvas, Lines);
-    if RectHeight(aRect) > TotalTextSize.cy then
-      Y := (aRect.Top + aRect.Bottom) div 2 - TotalTextSize.cy div 2
-    else
-      Y := aRect.Top;
-    RectW := RectWidth(aRect);
-    for I := 0 to Lines.Count - 1 do
-    begin
-      X := aRect.Left;
-      Line := Lines[I];
-      CleanLine := TStrUtils.RemoveEscSeq(Line);
-      DrawLen := Length(ShortenString(aCanvas.Handle, CleanLine, RectW - 2 * cstMargin));
-      AlreadyDrawedLen := 0;
-
-      TextSize := aCanvas.TextExtent(Lines[I]);
-
-      EscOffset := 1;
-      while TStrUtils.FindEscPos(Line, EscOffset, EscPos, EscSeq) do
-      begin
-        if AlreadyDrawedLen < DrawLen then
-        begin
-          Len := Min(DrawLen - AlreadyDrawedLen, EscPos - EscOffset);
-          aCanvas.TextOut(X, Y, Copy(Line, EscOffset, Len));
-          X := aCanvas.PenPos.X;
-
-          AlreadyDrawedLen := AlreadyDrawedLen + Len;
-        end;
-
-        EscOffset := EscPos + Length(EscSeq);
-        SetCanvasStyle(aCanvas, EscSeq);
-      end;
-
-
-      if AlreadyDrawedLen < DrawLen then
-      begin
-        aCanvas.TextOut(X, Y, Copy(Line, EscOffset, DrawLen - AlreadyDrawedLen));
-        X := aCanvas.PenPos.X;
-      end;
-
-      if DrawLen <> Length(CleanLine) then
-        aCanvas.TextOut(X, Y, '...');
-
-      Inc(Y, TextSize.cy);
-      if Y + TextSize.Cy > aRect.Bottom then
-        Exit;
-    end;
-  finally
-    FreeAndNil(Lines);
-  end;
-end;
-
 { TStatusObserver }
 
 constructor TStatusObserver.Create(aFrame: TSearchResultFrame; aSearchId: Int64);
@@ -846,71 +554,6 @@ begin
     FFrame.tbcTabs.Tabs[TabIndex] := GetTabText(Info);
 end;
 
-{ TVMSearchResultsListListener }
-
-constructor TVMSearchResultsListListener.Create(aOnItemAdded: TProc<TVMSearchResultsItem>);
-begin
-  inherited Create;
-  FOnItemAdded := aOnItemAdded;
-end;
-
-procedure TVMSearchResultsListListener.ItemAdded(aItem: TVMSearchResultsItem);
-begin
-  if Assigned(FOnItemAdded) then
-    FOnItemAdded(aItem);
-end;
-
-{ TControlUpdater }
-
-constructor TControlUpdater.Create(aOnUpdateControl: TProc);
-begin
-  inherited Create;
-  FOnUpdateControl := aOnUpdateControl;
-  FTimer := TTimer.Create(nil);
-  FTimer.OnTimer := OnTimer;
-  FTimer.Interval := 100;
-  FTimer.Enabled := False;
-end;
-
-destructor TControlUpdater.Destroy;
-begin
-  FreeAndNil(FTimer);
-  inherited;
-end;
-
-procedure TControlUpdater.DoUpdate;
-begin
-  FOnUpdateControl;
-  InterlockedExchange(FShouldUpdate, 0);
-end;
-
-procedure TControlUpdater.OnTimer(aSender: TObject);
-begin
-  if FShouldUpdate > 0 then
-  begin
-    if GetCurrentThreadId = MainThreadID then
-      DoUpdate
-    else
-    begin
-      TThread.RemoveQueuedEvents(nil, DoUpdate);
-      TThread.Queue(nil, DoUpdate);
-    end;
-  end;
-  FTimer.Enabled := False;
-end;
-
-procedure TControlUpdater.RequestUpdate;
-begin
-  if not FTimer.Enabled then
-  begin
-    InterlockedExchange(FShouldUpdate, 1);
-    OnTimer(Self);
-    InterlockedExchange(FShouldUpdate, 0);
-    FTimer.Enabled := True;
-  end
-  else
-    InterlockedExchange(FShouldUpdate, 1);
-end;
-
 end.
+
 
