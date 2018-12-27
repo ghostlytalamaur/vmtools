@@ -44,7 +44,7 @@ type
     procedure UpdateList;
 
     procedure OnNewList(aData: TVMSearchResultsList);
-    procedure OnNewItemInResultsList(aItem: TVMSearchResultsItem);
+    procedure OnListChanged;
   protected
     function DoCompare(Node1, Node2: PVirtualNode; Column: TColumnIndex): Integer; override;
     procedure DoTextDrawing(var PaintInfo: TVTPaintInfo; const Text: string; CellRect: TRect; DrawFormat: Cardinal); override;
@@ -70,10 +70,10 @@ uses
 type
   TVMSearchResultsListListener = class(TInterfacedObject, IVMSearchResultsListListener)
   private
-    FOnItemAdded: TProc<TVMSearchResultsItem>;
+    FOnListChanged: TProc;
   public
-    constructor Create(aOnItemAdded: TProc<TVMSearchResultsItem>);
-    procedure ItemAdded(aItem: TVMSearchResultsItem);
+    constructor Create(aOnListChanged: TProc);
+    procedure ListChanged;
   end;
 
 const
@@ -148,7 +148,7 @@ begin
   FInfoComparer := TInfoComparer.Create;
   FTextDrawer := TFormatTextDrawer.Create;
   FDataObserver := TDelegatedDataObserver<TVMSearchResultsList>.Create(OnNewList);
-  FListObserver := TVMSearchResultsListListener.Create(OnNewItemInResultsList);
+  FListObserver := TVMSearchResultsListListener.Create(OnListChanged);
   FListUpdater := TControlUpdater.Create(UpdateList);
 end;
 
@@ -279,7 +279,7 @@ begin
   FListUpdater.RequestUpdate;
 end;
 
-procedure TSearchResultsVirtualTree.OnNewItemInResultsList(aItem: TVMSearchResultsItem);
+procedure TSearchResultsVirtualTree.OnListChanged;
 begin
   FListUpdater.RequestUpdate;
 end;
@@ -375,16 +375,16 @@ end;
 
 { TVMSearchResultsListListener }
 
-constructor TVMSearchResultsListListener.Create(aOnItemAdded: TProc<TVMSearchResultsItem>);
+constructor TVMSearchResultsListListener.Create(aOnListChanged: TProc);
 begin
   inherited Create;
-  FOnItemAdded := aOnItemAdded;
+  FOnListChanged := aOnListChanged;
 end;
 
-procedure TVMSearchResultsListListener.ItemAdded(aItem: TVMSearchResultsItem);
+procedure TVMSearchResultsListListener.ListChanged;
 begin
-  if Assigned(FOnItemAdded) then
-    FOnItemAdded(aItem);
+  if Assigned(FOnListChanged) then
+    FOnListChanged;
 end;
 
 end.

@@ -71,6 +71,7 @@ type
   IMutableData<T> = interface(IObservableData<T>)
     procedure setValue(const Value: T);
     procedure postValue(const Value: T);
+    property Value: T read GetValue write SetValue;
   end;
 
   TDataObservereCallback<T> = reference to procedure (aData: T);

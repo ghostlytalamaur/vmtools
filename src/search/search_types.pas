@@ -5,7 +5,7 @@ unit search_types;
 interface
 
 uses
-  vmsys, generics.collections, generics.defaults, observer, classes, syncobjs, collections.sets;
+  vmsys, generics.collections, generics.defaults, observer, classes, collections.sets;
 
 type
   TVMSearchResultsItem = class(TObject)
@@ -30,13 +30,12 @@ type
 
   IVMSearchResultsListListener = interface
   ['{DF66D538-C1FC-47B3-B106-22EF9BA09FE6}']
-    procedure ItemAdded(aItem: TVMSearchResultsItem);
+    procedure ListChanged;
   end;
 
   TVMSearchResultsList = class(TObject)
   private
     FList: TList<TVMSearchResultsItem>;
-    FListCS: TCriticalSection;
     FAnnouncer: IAnnouncer<IVMSearchResultsListListener>;
 
     function GetCount: Integer;
@@ -47,6 +46,7 @@ type
     destructor Destroy; override;
 
     procedure AddItem(aItem: TVMSearchResultsItem);
+    procedure DataChanged;
 
     function CalculateFilesCount: Integer;
 
@@ -97,16 +97,7 @@ begin
   if aItem = nil then
     Exit;
 
-  FListCS.Acquire;
-  try
-    FList.Add(aItem);
-    FAnnouncer.ForEachListener(procedure (aObserver: IVMSearchResultsListListener)
-    begin
-      aObserver.ItemAdded(aItem);
-    end);
-  finally
-    FListCS.Release;
-  end;
+  FList.Add(aItem);
 end;
 
 function TVMSearchResultsList.CalculateFilesCount: Integer;
@@ -115,14 +106,9 @@ var
   Item: TVMSearchResultsItem;
 begin
   TotalFiles := THashSet<string>.Create;
-  FListCS.Acquire;
-  try
-    for Item in FList do
-      TotalFiles.Add(IncludeTrailingPathDelimiter(Item.FilePath) + Item.FileName);
-    Result := TotalFiles.Count;
-  finally
-    FListCS.Release;
-  end;
+  for Item in FList do
+    TotalFiles.Add(IncludeTrailingPathDelimiter(Item.FilePath) + Item.FileName);
+  Result := TotalFiles.Count;
 end;
 
 constructor TVMSearchResultsList.Create;
@@ -130,37 +116,33 @@ begin
   inherited Create;
   FAnnouncer := TAnnouncer<IVMSearchResultsListListener>.Create;
   FList := TObjectList<TVMSearchResultsItem > .Create;
-  FListCS := TCriticalSection.Create;
+end;
+
+procedure TVMSearchResultsList.DataChanged;
+begin
+  FAnnouncer.ForEachListener(procedure (aObserver: IVMSearchResultsListListener)
+  begin
+    aObserver.ListChanged;
+  end);
 end;
 
 destructor TVMSearchResultsList.Destroy;
 begin
   FreeAndNil(FList);
-  FreeAndNil(FListCS);
   inherited;
 end;
 
 function TVMSearchResultsList.GetCount: Integer;
 begin
-  FListCS.Acquire;
-  try
-    Result := FList.Count;
-  finally
-    FListCS.Release;
-  end;
+  Result := FList.Count;
 end;
 
 function TVMSearchResultsList.GetItem(aIdx: Integer): TVMSearchResultsItem;
 begin
-  FListCS.Acquire;
-  try
-    if (aIdx >= 0) and (aIdx < FList.Count) then
-      Result := FList[aIdx]
-    else
-      Result := nil;
-  finally
-    FListCS.Release;
-  end;
+  if (aIdx >= 0) and (aIdx < FList.Count) then
+    Result := FList[aIdx]
+  else
+    Result := nil;
 end;
 
 function TVMSearchResultsList.GetListeners: IListenersRegistry<IVMSearchResultsListListener>;

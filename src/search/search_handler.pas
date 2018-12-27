@@ -65,13 +65,14 @@ uses
   dialogs, Classes, Windows,
   search_query_dlg, controls, OtlCommon,
   str_utils, csplg_search, progress, csplg_types, collections.array_utils,
-  otlsync, search_cst, diagnostics;
+  otlsync, search_cst, diagnostics, OtlCollections, OtlComm, vm.debug, Messages;
 
 type
   TWorkItemData = class(TObject)
   public
     Params: TCodeSearchQueryParams;
     DestInfo: IObjectHolder<TSearchInfo>;
+    Callbacks: TSearchEngineCallbacks;
 
     constructor Create(aParams: TCodeSearchQueryParams; aDestInfo: TSearchInfo);
     destructor Destroy; override;
@@ -117,12 +118,30 @@ type
     procedure EndProgress; override;
   end;
 
-  TSearchResultsListener = class(TInterfacedObject, ICSSearchResultsListener)
+  TSearchEngineCallbacksImpl = class(TSearchEngineCallbacks)
+  private const
+    MSG_SYNC_BUF   = WM_USER + 1;
   private
     FDestInfo: IObjectHolder<TSearchInfo>;
+    FMessageQueue: TOmniMessageQueue;
+    FItemsQueue: IOmniBlockingCollection;
+    FErrorsQueue: IOmniBlockingCollection;
+    FLastSyncRequest: Cardinal;
+
+    procedure OnMessage(Sender: TObject; const msg: TOmniMessage);
+
+    procedure RequestSync;
+    procedure SyncBuffers;
+    procedure SyncItems;
+    procedure SyncErrors;
   public
     constructor Create(aDestInfo: IObjectHolder<TSearchInfo>);
-    procedure ItemAdded(aItem: TSearchItem);
+    destructor Destroy; override;
+    procedure ItemFound(const aItem: TOmniValue); override;
+    procedure Error(const aError: string); override;
+
+    procedure SearchStarted; override;
+    procedure SearchFinished; override;
   end;
 
 
@@ -164,7 +183,6 @@ var
   Path: string;
   Engine: TCodeSearchEngine;
   Data: TWorkItemData;
-  SearchResults: TSearchResults;
   ErrorCode: TCodeSearchEngineError;
   Res: TOmniValue;
   Stopwatch: TStopwatch;
@@ -178,7 +196,6 @@ begin
   Data.DestInfo.Obj.StatusText.postValue('Searching...');
 
   Engine := nil;
-  SearchResults := nil;
   ValidPaths := nil;
   Stopwatch := TStopwatch.StartNew;
   Progress := TSearchProgress.Create(WorkItem);
@@ -196,16 +213,12 @@ begin
 
     Engine := TCodeSearchEngine.Create(Progress, ValidPaths);
 
-    SearchResults := TSearchResults.Create;
-    SearchResults.Listeners.RegisterListener(TSearchResultsListener.Create(Data.DestInfo) as ICSSearchResultsListener);
-
-    ErrorCode := Engine.Search(Data.Params, GetIndexSearchPaths, SearchResults);
-    WorkItemRes := TWorkItemResult.Create(ErrorCode, SearchResults.AcquireErrors);
+    ErrorCode := Engine.Search(Data.Params, GetIndexSearchPaths, Data.Callbacks);
+    WorkItemRes := TWorkItemResult.Create(ErrorCode, nil);
     WorkItemRes.SearchTime := Stopwatch.ElapsedMilliseconds;
     Res.AsOwnedObject := WorkItemRes;
     workItem.Result := Res;
   finally
-    FreeAndNil(SearchResults);
     FreeAndNil(Engine);
     FreeAndNil(Progress);
     FreeAndNil(ValidPaths);
@@ -547,10 +560,12 @@ begin
   inherited Create;
   Params := aParams;
   DestInfo := TObjectHolder<TSearchInfo>.Create(aDestInfo, False);
+  Callbacks := TSearchEngineCallbacksImpl.Create(DestInfo);
 end;
 
 destructor TWorkItemData.Destroy;
 begin
+  FreeAndNil(Callbacks);
   FreeAndNil(Params);
   inherited;
 end;
@@ -576,23 +591,106 @@ begin
     FOnSearchInfoRemoved(aIndex);
 end;
 
-{ TSearchResultsListener }
+{ TSearchEngineCallbacksImpl }
 
-constructor TSearchResultsListener.Create(aDestInfo: IObjectHolder<TSearchInfo>);
+constructor TSearchEngineCallbacksImpl.Create(aDestInfo: IObjectHolder<TSearchInfo>);
 begin
   inherited Create;
   FDestInfo := aDestInfo;
+
+  FItemsQueue := TOmniBlockingCollection.Create;
+  FErrorsQueue := TOmniBlockingCollection.Create;
+  FMessageQueue := TOmniMessageQueue.Create(100);
+  FMessageQueue.OnMessage := OnMessage;
 end;
 
-procedure TSearchResultsListener.ItemAdded(aItem: TSearchItem);
-var
-  List: TVMSearchResultsList;
+destructor TSearchEngineCallbacksImpl.Destroy;
+begin
+  FreeAndNil(FMessageQueue);
+  inherited;
+end;
+
+procedure TSearchEngineCallbacksImpl.Error(const aError: string);
 begin
   if not FDestInfo.IsAlive then
     Exit;
 
-  List := FDestInfo.Obj.Results.Value;
-  List.AddItem(ConvertItem(aItem));
+  FErrorsQueue.Add(aError);
+  RequestSync;
+end;
+
+procedure TSearchEngineCallbacksImpl.ItemFound(const aItem: TOmniValue);
+var
+  OV: TOmniValue;
+begin
+  if not FDestInfo.IsAlive then
+    Exit;
+
+  OV.AsOwnedObject := ConvertItem(aItem);
+  FItemsQueue.Add(OV);
+  RequestSync;
+end;
+
+procedure TSearchEngineCallbacksImpl.OnMessage(Sender: TObject; const msg: TOmniMessage);
+begin
+  case msg.MsgID of
+    MSG_SYNC_BUF: SyncBuffers;
+  end;
+end;
+
+procedure TSearchEngineCallbacksImpl.RequestSync;
+begin
+  if GetTickCount - FLastSyncRequest > 100 then
+  begin
+    FMessageQueue.Enqueue(TOmniMessage.Create(MSG_SYNC_BUF));
+    FLastSyncRequest := GetTickCount;
+  end;
+end;
+
+procedure TSearchEngineCallbacksImpl.SearchFinished;
+begin
+  FLastSyncRequest := 0;
+  RequestSync;
+end;
+
+procedure TSearchEngineCallbacksImpl.SearchStarted;
+begin
+end;
+
+procedure TSearchEngineCallbacksImpl.SyncBuffers;
+begin
+  SyncItems;
+  SyncErrors;
+end;
+
+procedure TSearchEngineCallbacksImpl.SyncErrors;
+var
+  E: TOmniValue;
+  List: TStringList;
+begin
+  if not FDestInfo.IsAlive then
+    Exit;
+
+  List := TStringList.Create;
+  while FErrorsQueue.TryTake(E) do
+    FDestInfo.Obj.Errors.Value.Add(E.AsString);
+  FDestInfo.Obj.Errors.setValue(List);
+end;
+
+procedure TSearchEngineCallbacksImpl.SyncItems;
+var
+  Item: TOmniValue;
+begin
+  if not FDestInfo.IsAlive then
+    Exit;
+
+  while FItemsQueue.TryTake(Item) do
+  begin
+    FDestInfo.Obj.Results.Value.AddItem(Item.AsOwnedObject as TVMSearchResultsItem);
+    Item.OwnsObject := False;
+    Item.Clear;
+  end;
+  FDestInfo.Obj.Results.Value.DataChanged;
 end;
 
 end.

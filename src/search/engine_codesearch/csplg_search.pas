@@ -65,10 +65,10 @@ type
         aCancellationToken: IOmniCancellationToken): TJCLAppExecutor;
 
     function DoSearchMultiThread2(aParams: TCodeSearchQueryParams; aIndexFile: string;
-        Results: TSearchResults): TCodeSearchEngineError;
+        aCallbacks: TSearchEngineCallbacks): TCodeSearchEngineError;
 
     function CreateSearchExecutor(aParams: TCodeSearchQueryParams; aIndexFile: string;
-        DestErrors: TStringList): TPipelineStageDelegateEx;
+        aCallbacks: TSearchEngineCallbacks): TPipelineStageDelegateEx;
     function CreateItemAnalyzer(aParams: TCodeSearchQueryParams): TPipelineStageDelegateEx;
   public
     constructor Create(aProgress: TBaseProgress; aValidPaths: TStringList);
@@ -77,7 +77,7 @@ type
     // aQuery - regexp text to search
     // aCurrentFile - file, that will be used for search index
     function Search(aParams: TCodeSearchQueryParams; const aIndexSearchPath: array of string;
-        Results: TSearchResults): TCodeSearchEngineError;
+        aCallbacks: TSearchEngineCallbacks): TCodeSearchEngineError;
   end;
 
 implementation
@@ -182,11 +182,11 @@ end;
 { TCodeSearchEngine }
 
 function TCodeSearchEngine.Search(aParams: TCodeSearchQueryParams; const aIndexSearchPath: array of string;
-    Results: TSearchResults): TCodeSearchEngineError;
+    aCallbacks: TSearchEngineCallbacks): TCodeSearchEngineError;
 var
   IndexFile: string;
 begin
-  if Results = nil then
+  if aCallbacks = nil then
   begin
     Result := csee_Unknown;
     Exit;
@@ -199,11 +199,11 @@ begin
     Exit;
   end;
 
-  Result := DoSearchMultiThread2(aParams, IndexFile, Results)
+  Result := DoSearchMultiThread2(aParams, IndexFile, aCallbacks)
 end;
 
 function TCodeSearchEngine.CreateSearchExecutor(aParams: TCodeSearchQueryParams;
-    aIndexFile: string; DestErrors: TStringList): TPipelineStageDelegateEx;
+    aIndexFile: string; aCallbacks: TSearchEngineCallbacks): TPipelineStageDelegateEx;
 begin
   Result := procedure (const input, output: IOmniBlockingCollection; const task: IOmniTask)
   var
@@ -221,8 +221,7 @@ begin
         end,
         procedure (const aLine: string)
         begin
-          if DestErrors <> nil then
-            DestErrors.Add(aLine);
+          aCallbacks.Error(aLine);
         end, FParams.CSearchProcessPriority);
 
       MultilineParser.FlushBuffer;
@@ -264,42 +263,33 @@ begin
 end;
 
 function TCodeSearchEngine.DoSearchMultiThread2(aParams: TCodeSearchQueryParams; aIndexFile: string;
-    Results: TSearchResults): TCodeSearchEngineError;
+    aCallbacks: TSearchEngineCallbacks): TCodeSearchEngineError;
 var
   Pipeline: IOmniPipeline;
   OmniVal: TOmniValue;
   ResultsCount: Integer;
   TotalFiles: ISet<string>;
-  Item: TSearchItem;
-  Errors: TStringList;
 begin
   Result := csee_Unknown;
 
   Pipeline := nil;
-  Errors := nil;
-  TotalFiles := THashSet<string>.Create;
+  aCallbacks.SearchStarted;
   try
-    Errors := TStringList.Create;
+    TotalFiles := THashSet<string>.Create;
     Pipeline := Parallel.Pipeline
-        .Stage(CreateSearchExecutor(aParams, aIndexFile, Errors)).NumTasks(1)
+        .Stage(CreateSearchExecutor(aParams, aIndexFile, aCallbacks)).NumTasks(1)
         .Stage(CreateItemAnalyzer(aParams)).NumTasks(2)
         .Run;
 
+    ResultsCount := 0;
     while not Pipeline.Output.IsFinalized do
     begin
       if Pipeline.Output.TryTake(OmniVal, 10) and OmniVal.IsOwnedObject then
       begin
-        Item := OmniVal.AsOwnedObject as TSearchItem;
-        OmniVal.OwnsObject := False;
-        OmniVal.Clear;
-        Results.Add(Item);
-        TotalFiles.Add(Item.FilePath);
+        aCallbacks.ItemFound(OmniVal);
+        TotalFiles.Add((OmniVal.AsOwnedObject as TSearchItem).FilePath);
+        Inc(ResultsCount);
       end;
-
-      if Results <> nil then
-        ResultsCount := Results.Count
-      else
-        ResultsCount := 0;
 
       if ResultsCount mod math.Max(1, FParams.UpdateProgressEachItems) = 0 then
         FProgress.Info := IntToStr(ResultsCount) + ' results found in ' + IntToStr(TotalFiles.Count) + ' files.';
@@ -313,20 +303,14 @@ begin
 
     if FProgress.Cancelled then
       Result := csee_Cancelled
-    else if Results <> nil then
+    else if ResultsCount > 0 then
       Result := csee_Successful
     else
       Result := csee_NothingFound;
   finally
     if Pipeline <> nil then
       Pipeline.WaitFor(INFINITE);
-    if (Errors <> nil) and (Errors.Count > 0) then
-    begin
-      if Results = nil then
-        Results := TSearchResults.Create;
-      Results.Errors.Assign(Errors);
-    end;
-    FreeAndNil(Errors);
+    aCallbacks.SearchFinished;
   end;
 end;
 
