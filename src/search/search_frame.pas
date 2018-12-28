@@ -269,7 +269,7 @@ begin
       (CurInfo.Info.Errors.getValue = nil) or (CurInfo.Info.Errors.getValue.Count <= 0) then
     Exit;
 
-  TMemoDialog.Execute('Errors', CurInfo.Info.Errors.getValue.Text);
+  TMemoDialog.Execute('Errors', CurInfo.Info.Errors);
 end;
 
 procedure TSearchResultFrame.RemoveStatusObservers;

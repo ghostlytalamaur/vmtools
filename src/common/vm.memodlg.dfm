@@ -20,9 +20,6 @@ object MemoDialog: TMemoDialog
     Align = alBottom
     BevelOuter = bvNone
     TabOrder = 0
-    ExplicitLeft = 524
-    ExplicitTop = 352
-    ExplicitWidth = 185
     object btnOk: TButton
       Left = 769
       Top = 9

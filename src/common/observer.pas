@@ -3,7 +3,7 @@ unit observer;
 interface
 
 uses
-  Generics.Collections, SysUtils, weak_ref, vmsys, vm.common.updatestack, syncobjs;
+  Generics.Collections, SysUtils, weak_ref, vmsys, vm.common.updatestack, syncobjs, OtlSync;
 
 type
   IBaseObserver = interface(IWeakRefProvider)
@@ -93,8 +93,9 @@ type
   TObservableData<T> = class(TInterfacedObject, IObservableData<T>, IMutableData<T>)
   private
     FData: T;
-    FBufData: T;
-    FBufDataLock: TCriticalSection;
+    FDataLock: TOmniMREW;
+    FPendingData: T;
+    FPendingDataLock: TOmniCS;
     FObservers: TList<IDataObserver<T>>;
     FOnDisposeValue: TOnDisposeValue<T>;
     FDispatchInvalidated: Boolean;
@@ -102,11 +103,10 @@ type
 
     function getValue: T;
     procedure setValue(const Value: T);
-    procedure postValue(const Value: T);
-    procedure DoPostValue(const Value: T);
+    procedure postValue(const aValue: T);
+    procedure DoPostValue(const aValue: T);
     procedure SwapBufData;
 
-    procedure DisposeValue;
     procedure NotifyObserver(aObserver: IDataObserver<T>);
     procedure DispatchingValue(aObserver: IDataObserver<T>);
   public
@@ -172,9 +172,12 @@ end;
 
 destructor TObservableData<T>.Destroy;
 begin
-  DisposeValue;
+  TThread.RemoveQueuedEvents(nil, SwapBufData);
+
+  if Assigned(FOnDisposeValue) then
+    FOnDisposeValue(FData);
+
   FreeAndNil(FObservers);
-  FreeAndNil(FBufDataLock);
   inherited;
 end;
 
@@ -208,7 +211,6 @@ end;
 constructor TObservableData<T>.Create(aOnDisposeValue: TOnDisposeValue<T>);
 begin
   inherited Create;
-  FBufDataLock := TCriticalSection.Create;
   FOnDisposeValue := aOnDisposeValue;
 end;
 
@@ -276,52 +278,58 @@ procedure TObservableData<T>.SwapBufData;
 var
   Buf: T;
 begin
-  FBufDataLock.Acquire;
+  FPendingDataLock.Acquire;
   try
-    Buf := FBufData;
-    FBufData := Default(T);
+    Buf := FPendingData;
+    FPendingData := Default(T);
   finally
-    FBufDataLock.Release;
+    FPendingDataLock.Release;
   end;
   SetValue(Buf);
 end;
 
-procedure TObservableData<T>.DoPostValue(const Value: T);
+procedure TObservableData<T>.DoPostValue(const aValue: T);
 begin
-  FBufDataLock.Acquire;
+  FPendingDataLock.Acquire;
   try
-    TThread.RemoveQueuedEvents(nil, SwapBufData);
-    if Assigned(FOnDisposeValue) then
-      FOnDisposeValue(FBufData);
+    if Assigned(FOnDisposeValue) and not TEqualityComparer<T>.Default.Equals(FPendingData, aValue) then
+    begin
+      FDataLock.EnterReadLock;
+      try
+        if not TEqualityComparer<T>.Default.Equals(FPendingData, FData) then
+          FOnDisposeValue(FPendingData);
+      finally
+        FDataLock.ExitReadLock;
+      end;
+    end;
 
-    FBufData := Value;
+    FPendingData := aValue;
+    TThread.RemoveQueuedEvents(nil, SwapBufData);
     TThread.Queue(nil, SwapBufData);
   finally
-    FBufDataLock.Release;
+    FPendingDataLock.Release;
   end;
 end;
 
-procedure TObservableData<T>.postValue(const Value: T);
+procedure TObservableData<T>.postValue(const aValue: T);
 begin
   if GetCurrentThreadId <> MainThreadID then
-    DoPostValue(Value)
+    DoPostValue(aValue)
   else
-    setValue(Value);
-end;
-
-procedure TObservableData<T>.DisposeValue;
-begin
-  if Assigned(FOnDisposeValue) then
-    FOnDisposeValue(FData);
+    setValue(aValue);
 end;
 
 procedure TObservableData<T>.setValue(const Value: T);
 begin
-  if not TEqualityComparer<T>.Default.Equals(FData, Value) then
-  begin
-    DisposeValue;
+  FDataLock.EnterWriteLock;
+  try
+    if Assigned(FOnDisposeValue) and not TEqualityComparer<T>.Default.Equals(FData, Value) then
+      FOnDisposeValue(FData);
+
     FData := Value;
     DispatchingValue(nil);
+  finally
+    FDataLock.ExitWriteLock;
   end;
 end;
 

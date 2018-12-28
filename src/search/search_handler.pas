@@ -80,12 +80,10 @@ type
 
   TWorkItemResult = class
   public
-    Errors: TStringList;
     ErrorCode: TCodeSearchEngineError;
     SearchTime: Cardinal;
 
-    constructor Create(aErrorCode: TCodeSearchEngineError; aErrors: TStringList);
-    destructor Destroy; override;
+    constructor Create(aErrorCode: TCodeSearchEngineError);
   end;
 
   TSearchProgress = class(TProgress)
@@ -214,7 +212,7 @@ begin
     Engine := TCodeSearchEngine.Create(Progress, ValidPaths);
 
     ErrorCode := Engine.Search(Data.Params, GetIndexSearchPaths, Data.Callbacks);
-    WorkItemRes := TWorkItemResult.Create(ErrorCode, nil);
+    WorkItemRes := TWorkItemResult.Create(ErrorCode);
     WorkItemRes.SearchTime := Stopwatch.ElapsedMilliseconds;
     Res.AsOwnedObject := WorkItemRes;
     workItem.Result := Res;
@@ -247,16 +245,8 @@ begin
     ResData := workItem.Result.AsOwnedObject as TWorkItemResult;
     if ResData = nil then
     begin
-      if workItem.CancellationToken.IsSignalled then
-      begin
-        Data.DestInfo.Obj.Status.postValue(ssc_Cancelled);
-        Data.DestInfo.Obj.StatusText.postValue('Cancelled.');
-      end
-      else
-      begin
-        Data.DestInfo.Obj.Status.postValue(ssc_Unknown);
-        Data.DestInfo.Obj.StatusText.postValue('Unknown error.');
-      end;
+      Data.DestInfo.Obj.Status.postValue(ssc_Unknown);
+      Data.DestInfo.Obj.StatusText.postValue('Unknown error.');
     end
     else if workItem.CancellationToken.IsSignalled then
     begin
@@ -280,12 +270,6 @@ begin
       Data.DestInfo.Obj.Status.postValue(ssc_Successful);
       Data.DestInfo.Obj.StatusText.postValue(Format('Done. %d results in %d files. Elapsed time: %d ms.', [
           List.Count, List.CalculateFilesCount, ResData.SearchTime]));
-    end;
-
-    if ResData <> nil then
-    begin
-      Data.DestInfo.Obj.Errors.postValue(ResData.Errors);
-      ResData.Errors := nil;
     end;
   end;
 end;
@@ -539,17 +523,10 @@ end;
 
 { TWorkItemResult }
 
-constructor TWorkItemResult.Create(aErrorCode: TCodeSearchEngineError; aErrors: TStringList);
+constructor TWorkItemResult.Create(aErrorCode: TCodeSearchEngineError);
 begin
   inherited Create;
   ErrorCode := aErrorCode;
-  Errors := aErrors;
-end;
-
-destructor TWorkItemResult.Destroy;
-begin
-  FreeAndNil(Errors);
-  inherited;
 end;
 
 { TWorkItemData }
@@ -671,9 +648,12 @@ begin
   if not FDestInfo.IsAlive then
     Exit;
 
-  List := TStringList.Create;
+  if FDestInfo.Obj.Errors.Value <> nil then
+    List := FDestInfo.Obj.Errors.Value
+  else
+    List := TStringList.Create;
   while FErrorsQueue.TryTake(E) do
-    FDestInfo.Obj.Errors.Value.Add(E.AsString);
+    List.Add(E.AsString);
   FDestInfo.Obj.Errors.setValue(List);
 end;
 
