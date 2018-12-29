@@ -38,9 +38,11 @@ object OpenFileFrame: TOpenFileFrame
       Header.Font.Name = 'Tahoma'
       Header.Font.Style = []
       Header.Options = [hoColumnResize, hoDrag, hoShowSortGlyphs, hoVisible]
+      IncrementalSearch = isAll
       TabOrder = 0
       OnFreeNode = vstFilesFreeNode
       OnGetText = vstFilesGetText
+      OnIncrementalSearch = vstFilesIncrementalSearch
       OnInitNode = vstFilesInitNode
       OnNodeDblClick = vstFilesNodeDblClick
       Columns = <

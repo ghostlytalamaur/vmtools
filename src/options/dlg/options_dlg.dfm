@@ -56,6 +56,15 @@ object OptForm: TOptForm
       NumGlyphs = 2
       TabOrder = 1
     end
+    object btnNewFile: TButton
+      Left = 13
+      Top = 6
+      Width = 75
+      Height = 25
+      Caption = 'New File'
+      TabOrder = 2
+      OnClick = btnNewFileClick
+    end
   end
   object PageControl1: TPageControl
     Left = 0
@@ -207,18 +216,18 @@ object OptForm: TOptForm
           ExplicitHeight = 586
           inherited vstResults: TVirtualStringTree
             Width = 843
-            Height = 547
+            Height = 546
             ExplicitWidth = 843
-            ExplicitHeight = 547
+            ExplicitHeight = 546
           end
           inherited tbcTabs: TTabSet
             Width = 843
             ExplicitWidth = 843
           end
           inherited pnlStatus: TFlowPanel
-            Top = 567
+            Top = 566
             Width = 843
-            ExplicitTop = 567
+            ExplicitTop = 566
             ExplicitWidth = 843
           end
         end

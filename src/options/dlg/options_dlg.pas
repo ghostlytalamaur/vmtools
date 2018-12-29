@@ -29,8 +29,10 @@ type
     SearchResultFrame1: TSearchResultFrame;
     pnlSearchRight: TPanel;
     btnSearch: TButton;
+    btnNewFile: TButton;
     procedure btnApplyOptionsClick(Sender: TObject);
     procedure btnDefaultOptionsClick(Sender: TObject);
+    procedure btnNewFileClick(Sender: TObject);
     procedure btnSearchClick(Sender: TObject);
     procedure btnTestActionClick(Sender: TObject);
     procedure FormShow(Sender: TObject);
@@ -56,9 +58,11 @@ implementation
 
 uses
   str_utils, ioutils, Types, Menus, Rtti, TypInfo,
-  generics.collections, Vcl.ActnList, vmsys;
+  generics.collections, Vcl.ActnList, vmsys, new_file_dlg, collections.common;
 
 {$R *.dfm}
+const
+  cstTestPath = 'D:\dev\delphi';
 
 type
   TTestOpenFileHandler = class(TBaseOpenFileHandler)
@@ -168,6 +172,19 @@ begin
   OptionsFrame1.SetParams(FCopyParams);
 end;
 
+procedure TOptForm.btnNewFileClick(Sender: TObject);
+var
+  Dlg: TCreateFileDlg;
+begin
+  Dlg := TCreateFileDlg.Create(nil, nil);
+  try
+    Dlg.SetPaths(TCollectionsUtils.Wrap<string>(TDirectory.GetDirectories('D:\dev\delphi\vmtools.github\src', '*', TSearchOption.soAllDirectories)));
+    Dlg.ShowModal;
+  finally
+    FreeAndNil(Dlg);
+  end;
+end;
+
 procedure TOptForm.btnSearchClick(Sender: TObject);
 begin
   FSearchHandler.ExecuteSearch;
@@ -233,7 +250,7 @@ var
   Dirs: TStringDynArray;
   DirsStr, Dir: string;
 begin
-  Dirs := TDirectory.GetDirectories('D:\dev\delphi', '*.*', TSearchOption.soAllDirectories);
+  Dirs := TDirectory.GetDirectories(cstTestPath, '*.*', TSearchOption.soAllDirectories);
   DirsStr := '';
   for Dir in Dirs do
     DirsStr := DirsStr + ';' + Dir;

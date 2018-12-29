@@ -38,6 +38,8 @@ type
     procedure vstFilesNodeDblClick(Sender: TBaseVirtualTree; const HitInfo: THitInfo);
     procedure btnRebuildClick(Sender: TObject);
     procedure cmbFilterChange(Sender: TObject);
+    procedure vstFilesIncrementalSearch(Sender: TBaseVirtualTree; Node: PVirtualNode; const SearchText: string; var Result:
+        Integer);
   strict private
     FFrameParams: TOpenFileFrameParams;
     FHandlerHolder: IObjectHolder<TBaseOpenFileHandler>;
@@ -341,6 +343,20 @@ begin
     cstColumnFile: CellText := NodeData.FileName;
     cstColumnPath: CellText := NodeData.FilePath
   end;
+end;
+
+procedure TOpenFileFrame.vstFilesIncrementalSearch(Sender: TBaseVirtualTree; Node: PVirtualNode; const SearchText:
+    string; var Result: Integer);
+var
+  NodeData: TNodeData;
+begin
+  Result := 0;
+  NodeData := vstFiles.GetNodeData<TNodeData>(Node);
+  if NodeData = nil then
+    Exit;
+
+  if TStrUtils.PosI(SearchText, IncludeTrailingPathDelimiter(NodeData.FilePath) + NodeData.FileName) > 0 then
+    Result := 1;
 end;
 
 procedure TOpenFileFrame.vstFilesInitNode(Sender: TBaseVirtualTree; ParentNode, Node: PVirtualNode;

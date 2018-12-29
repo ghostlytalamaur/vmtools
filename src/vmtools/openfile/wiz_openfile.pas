@@ -27,6 +27,7 @@ type
     FNotifierIdx: Integer;
 
     procedure OnShowOpenFileDialog(aSender: TObject);
+    procedure OnCreateNewFile(aSender: TObject);
     function GetDlg: IObjectHolder<TCustomForm>;
     function GetDockForm: IVMCustomDockForm;
     function GetFrame: TOpenFileFrame;
@@ -37,6 +38,8 @@ type
     procedure RefreshShortCuts;
     procedure RegisterShortCuts;
     procedure UnregisterShortCuts;
+    procedure RegisterMenu;
+    procedure UnregisterMenu;
 
     property Dlg: IObjectHolder<TCustomForm> read GetDlg;
     property MainFrame: TOpenFileFrame read GetFrame;
@@ -58,7 +61,7 @@ implementation
 
 uses
   vm_ide_utils, SysUtils, vmtools_cst, ioutils, deskutil, masks,
-  vm.ide.options.treehandler, vm.debug;
+  vm.ide.options.treehandler, vm.debug, new_file_dlg;
 
 type
   TExtOpenFileHandler = class(TOpenFileHandler)
@@ -179,6 +182,28 @@ begin
   Result := cstOpenFile_Caption;
 end;
 
+procedure TVMOpenFileWizard.OnCreateNewFile(aSender: TObject);
+var
+  Dlg: TCreateFileDlg;
+  OnOpenFile: TProc<string, Integer, Integer>;
+begin
+  OnOpenFile := procedure (aFilePath: string; aLineNum, aStartColumn: Integer)
+    begin
+      if not aFilePath.IsEmpty then
+      begin
+        TGXOtaUtils.GxOtaGoToFileLineColumn(aFilePath, aLineNum, aStartColumn);
+        TVMOtaUtils.Reloadfile(aFilePath);
+      end;
+    end;
+  Dlg := TCreateFileDlg.Create(nil, OnOpenFile);
+  try
+    Dlg.SetPaths(TVMOtaUtils.GetProjectPathsList);
+    Dlg.ShowModal;
+  finally
+    FreeAndNil(Dlg);
+  end;
+end;
+
 procedure TVMOpenFileWizard.OnShowOpenFileDialog(aSender: TObject);
 begin
   if (Dlg = nil) or (MainFrame = nil) or not Dlg.IsAlive then
@@ -232,6 +257,7 @@ procedure TVMOpenFileWizard.RegisterWizard;
 begin
   inherited;
   RefreshShortcuts;
+  RegisterMenu;
   (BorlandIDEServices as INTAServices).RegisterDockableForm(GetDockForm);
   FNotifierIdx := (BorlandIDEServices as IOTAServices50).AddNotifier(TIDENotifier.Create(Handler));
 end;
@@ -246,9 +272,30 @@ begin
   end;
 end;
 
+procedure TVMOpenFileWizard.RegisterMenu;
+begin
+  ActionManager.BeginUpdate;
+  try
+    ActionManager.RegisterInternalMenuAction('Create file in search paths...', OnCreateNewFile, 0);
+  finally
+    ActionManager.EndUpdate;
+  end;
+end;
+
+procedure TVMOpenFileWizard.UnregisterMenu;
+begin
+  ActionManager.BeginUpdate;
+  try
+    ActionManager.UnRegisterInternalMenuAction('Create file in search paths...');
+  finally
+    ActionManager.EndUpdate;
+  end;
+end;
+
 procedure TVMOpenFileWizard.UnregisterWizard;
 begin
   UnregisterShortcuts;
+  UnregisterMenu;
   (BorlandIDEServices as IOTAServices50).RemoveNotifier(FNotifierIdx);
   FNotifierIdx := -1;
   if FDockForm <> nil then

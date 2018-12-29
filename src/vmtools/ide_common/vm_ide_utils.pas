@@ -84,6 +84,7 @@ type
     class function GetProjectGroupsPathsList: IEnumerable<string>;
     class function GetProjectFileList(aFromProjectGroup: Boolean): IEnumerable<string>;
     class function GetWordUnderCursorInCurView2: string;
+    class function ReloadFile(const FileName: string): Boolean;
   end;
 
 
@@ -181,6 +182,18 @@ begin
               Result := ExpandFileName(ProjectPath + Result);
           end)
       .Enum;
+end;
+
+class function TVMOtaUtils.ReloadFile(const FileName: string): Boolean;
+var
+  ActionServices: IOTAActionServices;
+begin
+  Result := False;
+  if FileName = '' then
+    Exit;
+
+  ActionServices := BorlandIDEServices as IOTAActionServices;
+  ActionServices.ReloadFile(FileName);
 end;
 
 class function TVMOtaUtils.GetProjectGroupsPathsList: IEnumerable<string>;
