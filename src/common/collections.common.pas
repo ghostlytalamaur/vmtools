@@ -19,6 +19,7 @@ type
     class function Wrap(aList: TStringList): IEnumerable<string>; overload; static;
     class function Seq(aStart, aStep, aCount: Integer): IEnumerable<Integer>; static;
     class function Empty<T>: IEnumerable<T>; static;
+    class function AtValue<T>(aList: TList<T>; aIndex: Integer): T; static;
   end;
 
   IAccumulator<T> = interface
@@ -55,6 +56,15 @@ uses
 
 
 { TCollectionsUtils }
+
+class function TCollectionsUtils.AtValue<T>(aList: TList<T>; aIndex: Integer): T;
+begin
+  Result := Default(T);
+  if (aList = nil) or (aIndex < 0) or (aIndex >= aList.Count) then
+    Exit;
+
+  Result := aList[aIndex];
+end;
 
 class function TCollectionsUtils.Empty<T>: IEnumerable<T>;
 begin

@@ -3,7 +3,7 @@ unit vtree_mod;
 interface
 
 uses
-  VirtualTrees, graphics, windows, controls, classes, inifiles;
+  VirtualTrees, graphics, windows, controls, classes, inifiles, stdctrls, messages;
 
 type
   TExtVirtualTreeParams = class
@@ -44,6 +44,9 @@ type
   end;
 
   TExtVirtualStringTree = class(TVirtualStringTree)
+  private
+    FSearchEdit: TEdit;
+    FLastHitNode: PVirtualNode;
   protected
     function DoEndEdit: Boolean; override;
     function DoCancelEdit: Boolean; override;
@@ -55,7 +58,19 @@ type
     procedure DrawDottedHLine(const PaintInfo: TVTPaintInfo; Left, Right, Top: Integer); override;
     procedure DrawDottedVLine(const PaintInfo: TVTPaintInfo; Top, Bottom, Left: Integer; UseSelectedBkColor: Boolean = False); override;
     procedure UpdateNodesHeight(aNewHeight: Integer);
+
+    procedure DoStateChange(Enter: TVirtualTreeStates; Leave: TVirtualTreeStates = []); override;
+    procedure UpdateSearchEditVisibility(aShouldShow: Boolean);
+    procedure SetParent(AParent: TWinControl); override;
+    procedure WMChar(var Message: TWMChar); message WM_CHAR;
+    function FindIncrementalNode(aStartFrom: TVTSearchStart; aSkipFirst, aIsForward: Boolean; aText: string): PVirtualNode;
+  private
+    procedure OnEditKeyPress(Sender: TObject; var Key: Char);
+    procedure OnEditKeyDown(Sender: TObject; var Key: Word; Shift: TShiftState);
+    procedure OnEditChange(Sender: TObject);
+    procedure OnEditExit(Sender: TObject);
   public
+    constructor Create(aOwner: TComponent); override;
     procedure SortTree(Column: TColumnIndex; Direction: TSortDirection; DoInit: Boolean = True); override;
     procedure LoadSetting(aParams: TExtVirtualTreeParams);
     procedure StoreSetting(aParams: TExtVirtualTreeParams);
@@ -65,7 +80,7 @@ type
 implementation
 
 uses
-  messages, sysutils, math;
+  sysutils, math;
 
 { TExtVirtualStringTree }
 
@@ -88,6 +103,17 @@ begin
   v2:= Byte(c2 shr 16);
   b:= A * (v1 - v2) shr 8 + v2;
   Result := (b shl 16) + (g shl 8) + r;
+end;
+
+constructor TExtVirtualStringTree.Create(aOwner: TComponent);
+begin
+  inherited Create(aOwner);
+  FSearchEdit := TEdit.Create(Self);
+  FSearchEdit.Visible := False;
+  FSearchEdit.OnKeyDown := OnEditKeyDown;
+  FSearchEdit.OnKeyPress := OnEditKeyPress;
+  FSearchEdit.OnChange := OnEditChange;
+  FSearchEdit.OnExit := OnEditExit;
 end;
 
 procedure TExtVirtualStringTree.DoBeforeCellPaint(Canvas: TCanvas; Node: PVirtualNode; Column: TColumnIndex;
@@ -150,6 +176,191 @@ begin
   Result := True;
 end;
 
+procedure TExtVirtualStringTree.UpdateSearchEditVisibility(aShouldShow: Boolean);
+begin
+  if FSearchEdit = nil then
+    Exit;
+
+  if FSearchEdit.Visible = aShouldShow then
+    Exit;
+
+  FSearchEdit.Visible := aShouldShow;
+  if FSearchEdit.Visible then
+  begin
+    FSearchEdit.Top := Top;
+    FSearchEdit.Left := Left;
+    FSearchEdit.Width := Width;
+    Top := Top + FSearchEdit.Height;
+    Height := Height - FSearchEdit.Height;
+    FSearchEdit.SetFocus;
+  end
+  else
+  begin
+    Top := Top - FSearchEdit.Height;
+    Height := Height + FSearchEdit.Height;
+    SetFocus;
+    DoStateChange([], [tsIncrementalSearching]);
+  end;
+  FSearchEdit.Text := '';
+  FLastHitNode := nil;
+end;
+
+procedure TExtVirtualStringTree.DoStateChange(Enter, Leave: TVirtualTreeStates);
+begin
+  inherited;
+  if FSearchEdit <> nil then
+  begin
+    if (tsIncrementalSearchPending in Enter) and (IncrementalSearch <> isNone) then
+      UpdateSearchEditVisibility(True)
+  end;
+end;
+
+procedure TExtVirtualStringTree.WMChar(var Message: TWMChar);
+begin
+  if (FSearchEdit <> nil) and (IncrementalSearch <> isNone) and (Message.CharCode > 0) and (tsIncrementalSearchPending in TreeStates) then
+  begin
+    FSearchEdit.Dispatch(Message);
+    DoStateChange([], [tsIncrementalSearchPending]);
+  end
+  else
+    inherited
+end;
+
+function TExtVirtualStringTree.FindIncrementalNode(aStartFrom: TVTSearchStart; aSkipFirst, aIsForward: Boolean; aText: string): PVirtualNode;
+
+  function SelectNext(aNode: PVirtualNode): PVirtualNode;
+
+    function SelectSibling(aNode: PVirtualNode): PVirtualNode;
+    begin
+      if aIsForward then
+        Result := aNode.NextSibling
+      else
+        Result := aNode.PrevSibling;
+    end;
+
+  begin
+    Result := nil;
+    if aNode = nil then
+      Exit;
+
+    case IncrementalSearch of
+      isAll: Result := SelectSibling(aNode);
+      isNone: Result := nil;
+      isInitializedOnly:
+      begin
+        aNode := SelectSibling(aNode);
+        while (aNode <> nil) and not (vsInitialized in aNode.States) do
+          aNode := SelectSibling(aNode);
+        if (aNode <> nil) and (vsInitialized in aNode.States) then
+          Result := aNode;
+      end;
+      isVisibleOnly:
+      begin
+        if aIsForward then
+          Result := GetNextVisible(aNode)
+        else
+          Result := GetPreviousVisible(aNode);
+      end;
+    end;
+  end;
+
+var
+  Node: PVirtualNode;
+begin
+  Result := nil;
+  Node := nil;
+  case aStartFrom of
+    ssAlwaysStartOver:
+    begin
+      if IncrementalSearch = isVisibleOnly then
+      begin
+        if aIsForward then
+          Node := GetFirstVisibleChild(RootNode)
+        else
+          Node := GetLastVisibleChild(RootNode);
+      end
+      else if aIsForward then
+        Node := GetFirstChild(RootNode)
+      else
+        Node := GetLastChild(RootNode);
+    end;
+    ssLastHit:
+    begin
+      Node := FLastHitNode;
+      if Node = nil then
+        Node := FocusedNode;
+    end;
+    ssFocusedNode: Node := FocusedNode;
+  end;
+
+  if Node = nil then
+    Exit;
+
+  if aSkipFirst then
+    Node := SelectNext(Node);
+
+  while (Node <> nil) and (DoIncrementalSearch(Node, aText) <> 0) do
+    Node := SelectNext(Node);
+  if (Node <> nil) and (DoIncrementalSearch(Node, aText) = 0) then
+  begin
+    FLastHitNode := Node;
+    Result := Node;
+  end;
+end;
+
+procedure TExtVirtualStringTree.OnEditKeyPress(Sender: TObject; var Key: Char);
+var
+  Node: PVirtualNode;
+begin
+  if Ord(Key) >= 32 then
+  begin
+    Node := FindIncrementalNode(IncrementalSearchStart, False, IncrementalSearchDirection = sdForward, FSearchEdit.Text + Key);
+    if Node = nil then
+      Key := #0
+    else
+      Selected[Node] := True;
+  end;
+end;
+
+procedure TExtVirtualStringTree.OnEditKeyDown(Sender: TObject; var Key: Word; Shift: TShiftState);
+var
+  Node: PVirtualNode;
+begin
+  Node := nil;
+  case Key of
+    VK_DOWN,
+    VK_UP:
+    begin
+      Node := FindIncrementalNode(ssFocusedNode, True, Key = VK_DOWN, FSearchEdit.Text);
+      Key := 0;
+    end;
+    VK_ESCAPE:
+    begin
+      FSearchEdit.Text := '';
+      UpdateSearchEditVisibility(False);
+    end;
+  end;
+
+  if Node <> nil then
+    Selected[Node] := True;
+end;
+
+procedure TExtVirtualStringTree.OnEditChange(Sender: TObject);
+begin
+  if FSearchEdit = nil then
+    Exit;
+
+  UpdateSearchEditVisibility(FSearchEdit.Text <> '')
+end;
+
+procedure TExtVirtualStringTree.OnEditExit(Sender: TObject);
+begin
+  if FSearchEdit = nil then
+    Exit;
+
+  UpdateSearchEditVisibility(False)
+end;
+
 procedure TExtVirtualStringTree.DrawDottedHLine(const PaintInfo: TVTPaintInfo; Left, Right, Top: Integer);
 begin
   inherited;
@@ -159,6 +370,13 @@ procedure TExtVirtualStringTree.DrawDottedVLine(const PaintInfo: TVTPaintInfo; T
   UseSelectedBkColor: Boolean);
 begin
   inherited;
+end;
+
+procedure TExtVirtualStringTree.SetParent(AParent: TWinControl);
+begin
+  inherited;
+  if FSearchEdit <> nil then
+    FSearchEdit.Parent := aParent;
 end;
 
 procedure TExtVirtualStringTree.ShowHeader(aIsShow: Boolean);

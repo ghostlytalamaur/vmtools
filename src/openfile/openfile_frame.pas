@@ -246,7 +246,8 @@ begin
         not (cmbFilter.Focused and ([ssCtrl] = Shift)) then
       begin
         vstFiles.SetFocus;
-        vstFiles.Selected[vstFiles.GetFirst] := True;
+        if vstFiles.GetFirstSelected <> nil then
+          vstFiles.Selected[vstFiles.GetFirstSelected.NextSibling] := True;
         Key := Ord(#0);
       end;
     end;
@@ -350,13 +351,13 @@ procedure TOpenFileFrame.vstFilesIncrementalSearch(Sender: TBaseVirtualTree; Nod
 var
   NodeData: TNodeData;
 begin
-  Result := 0;
+  Result := 1;
   NodeData := vstFiles.GetNodeData<TNodeData>(Node);
   if NodeData = nil then
     Exit;
 
   if TStrUtils.PosI(SearchText, IncludeTrailingPathDelimiter(NodeData.FilePath) + NodeData.FileName) > 0 then
-    Result := 1;
+    Result := 0;
 end;
 
 procedure TOpenFileFrame.vstFilesInitNode(Sender: TBaseVirtualTree; ParentNode, Node: PVirtualNode;

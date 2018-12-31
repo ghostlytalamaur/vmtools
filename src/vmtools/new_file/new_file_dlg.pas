@@ -5,7 +5,7 @@ interface
 uses
   Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants, System.Classes, Vcl.Graphics,
   Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Vcl.ExtCtrls, Vcl.StdCtrls, baseform, Vcl.CheckLst, generics.collections,
-  collections.sets, Vcl.ComCtrls;
+  collections.sets, Vcl.ComCtrls, vtree_mod, VirtualTrees;
 
 type
   TFileTemplate = class
@@ -30,7 +30,6 @@ type
     destructor Destroy; override;
   end;
 
-  EFileExistsException = class(Exception);
   TTemplateProcessor = class
   private
     FOnOpenFile: TProc<string, Integer, Integer>;
@@ -44,22 +43,36 @@ type
     function CreateFileFromTemplate(const aFullFileName: string; aTemplate: TFileTemplate): Boolean;
   end;
 
+  TVirtualStringTree = class(TExtVirtualStringTree);
   TCreateFileDlg = class(TBaseForm)
     pnlButtons: TPanel;
     pnlMain: TPanel;
     edtFileName: TEdit;
     btnOk: TButton;
     btnCancel: TButton;
-    lstPaths: TListBox;
-    lstTemplates: TListBox;
+    lblTemplates: TLabel;
+    lblPaths: TLabel;
+    lblFileName: TLabel;
+    vstTemplates: TVirtualStringTree;
+    vstPaths: TVirtualStringTree;
     procedure btnOkClick(Sender: TObject);
     procedure DoEnableControls(Sender: TObject);
-    procedure lstTemplatesKeyPress(Sender: TObject; var Key: Char);
+    procedure vstPathsGetText(Sender: TBaseVirtualTree; Node: PVirtualNode; Column: TColumnIndex; TextType: TVSTTextType;
+        var CellText: string);
+    procedure vstPathsIncrementalSearch(Sender: TBaseVirtualTree; Node: PVirtualNode; const SearchText: string; var Result:
+        Integer);
+    procedure vstTemplatesFocusChanged(Sender: TBaseVirtualTree; Node: PVirtualNode; Column: TColumnIndex);
+    procedure vstTemplatesGetText(Sender: TBaseVirtualTree; Node: PVirtualNode; Column: TColumnIndex; TextType:
+        TVSTTextType; var CellText: string);
+    procedure vstTemplatesIncrementalSearch(Sender: TBaseVirtualTree; Node: PVirtualNode; const SearchText: string; var
+        Result: Integer);
   private
     FTemplateProc: TTemplateProcessor;
-    FPaths: IEnumerable<string>;
+    FPaths: TList<string>;
     FTemplates: TList<TFileTemplate>;
 
+    function GetSelectedTemplate: TFileTemplate;
+    function GetSelectedPath: string;
   protected
     procedure SetupControls; override;
     procedure EnableControls; override;
@@ -94,22 +107,35 @@ begin
           mtConfirmation, [mbYes, mbNo], 0) = mrYes;
     end);
   FTemplates := FTemplateProc.GetTemplates;
+
+  vstTemplates.Header.Options := vstTemplates.Header.Options + [hoAutoResize];
+  vstTemplates.TreeOptions.PaintOptions := vstTemplates.TreeOptions.PaintOptions - [toShowRoot];
+  vstTemplates.TreeOptions.SelectionOptions := vstTemplates.TreeOptions.SelectionOptions + [toFullRowSelect, toAlwaysSelectNode];
+
+  vstPaths.Header.Options := vstPaths.Header.Options + [hoAutoResize];
+  vstPaths.TreeOptions.PaintOptions := vstPaths.TreeOptions.PaintOptions - [toShowRoot];
+  vstPaths.TreeOptions.SelectionOptions := vstPaths.TreeOptions.SelectionOptions + [toFullRowSelect, toAlwaysSelectNode];
 end;
 
 destructor TCreateFileDlg.Destroy;
 begin
+  FreeAndNil(FPaths);
   FreeAndNil(FTemplates);
+  FreeAndNil(FTemplateProc);
   inherited;
 end;
 
 procedure TCreateFileDlg.btnOkClick(Sender: TObject);
+var
+  Path: string;
+  Template: TFileTemplate;
 begin
-  if (lstPaths.Count = 0) or (lstTemplates.Count = 0) and (lstPaths.ItemIndex < 0) or
-      (lstTemplates.ItemIndex < 0) and (Trim(edtFileName.Text) = '') then
+  Template := GetSelectedTemplate;
+  Path := GetSelectedPath;
+  if (Template = nil) or Path.IsEmpty or Trim(edtFileName.Text).IsEmpty then
     Exit;
 
-  FTemplateProc.CreateFileFromTemplate(TPath.Combine(lstPaths.Items[lstPaths.ItemIndex], edtFileName.Text),
-      FTemplates[lstTemplates.ItemIndex]);
+  FTemplateProc.CreateFileFromTemplate(TPath.Combine(Path, edtFileName.Text), Template);
 end;
 
 procedure TCreateFileDlg.DoEnableControls(Sender: TObject);
@@ -120,52 +146,103 @@ end;
 procedure TCreateFileDlg.EnableControls;
 begin
   inherited;
-  btnOk.Enabled := (lstPaths.Count > 0) and (lstTemplates.Count > 0) and (lstPaths.ItemIndex >= 0) and
-      (lstTemplates.ItemIndex >= 0) and (Trim(edtFileName.Text) <> '') and
+  btnOk.Enabled :=
+      (GetSelectedTemplate <> nil) and
+      not Trim(edtFileName.Text).IsEmpty and
       TPath.HasValidPathChars(edtFileName.Text, False) and
-      TPath.HasValidPathChars(lstPaths.Items[lstPaths.ItemIndex], False);
+      TPath.HasValidPathChars(GetSelectedPath, False);
 end;
 
-procedure TCreateFileDlg.lstTemplatesKeyPress(Sender: TObject; var Key: Char);
+function TCreateFileDlg.GetSelectedPath: string;
+var
+  Node: PVirtualNode;
 begin
-  EnableControls;
+  Node := vstPaths.GetFirstSelected;
+  if Node <> nil then
+    Result := TCollectionsUtils.AtValue<string>(FPaths, Node.Index)
+  else
+    Result := '';
+end;
+
+function TCreateFileDlg.GetSelectedTemplate: TFileTemplate;
+var
+  Node: PVirtualNode;
+begin
+  Node := vstTemplates.GetFirstSelected;
+  if Node <> nil then
+    Result := TCollectionsUtils.AtValue<TFileTemplate>(FTemplates, Node.Index)
+  else
+    Result := nil;
 end;
 
 procedure TCreateFileDlg.SetPaths(aPaths: IEnumerable<string>);
 begin
-  FPaths := aPaths;
+  FreeAndNil(FPaths);
+  FPaths := TList<string>.Create;
+  FPaths.AddRange(aPaths);
   SetupControls;
 end;
 
 procedure TCreateFileDlg.SetupControls;
-
-  procedure FillListBox(aListBox: TListBox; aStrings: IEnumerable<string>);
-  var
-    S: string;
-  begin
-    aListBox.Items.BeginUpdate;
-    try
-      aListBox.Items.Clear;
-      if FPaths <> nil then
-        for S in aStrings do
-          aListBox.Items.Add(S);
-      if aListBox.Items.Count > 0 then
-        aListBox.ItemIndex := 0;
-    finally
-      aListBox.Items.EndUpdate;
-    end;
-  end;
-
 begin
   inherited;
 
-  FillListBox(lstTemplates,
-    Pipeline<TFileTemplate>.From(FTemplates).Map<string>(function (const aTemplate: TFileTemplate): string
-    begin
-      Result := Format('%s (%d files)', [aTemplate.Name, aTemplate.Files.Count])
-    end).Enum);
+  if FTemplates <> nil then
+    vstTemplates.RootNodeCount := FTemplates.Count
+  else
+    vstTemplates.RootNodeCount := 0;
 
-  FillListBox(lstPaths, FPaths);
+  if FPaths <> nil then
+    vstPaths.RootNodeCount := FPaths.Count
+  else
+    vstPaths.RootNodeCount := 0;
+end;
+
+procedure TCreateFileDlg.vstPathsGetText(Sender: TBaseVirtualTree; Node: PVirtualNode; Column: TColumnIndex; TextType:
+    TVSTTextType; var CellText: string);
+begin
+  CellText := TCollectionsUtils.AtValue<string>(FPaths, Node.Index);
+end;
+
+procedure TCreateFileDlg.vstPathsIncrementalSearch(Sender: TBaseVirtualTree; Node: PVirtualNode; const SearchText:
+    string; var Result: Integer);
+begin
+  if TCollectionsUtils.AtValue<string>(FPaths, Node.Index).ToUpper.Contains(SearchText.ToUpper) then
+    Result := 0
+  else
+    Result := 1;
+end;
+
+procedure TCreateFileDlg.vstTemplatesIncrementalSearch(Sender: TBaseVirtualTree; Node: PVirtualNode; const SearchText:
+    string; var Result: Integer);
+var
+  Template: TFileTemplate;
+begin
+  Template := TCollectionsUtils.AtValue<TFileTemplate>(FTemplates, Node.Index);
+  if Template.Name.ToUpper.Contains(SearchText.ToUpper) then
+    Result := 0
+  else
+    Result := 1;
+end;
+
+procedure TCreateFileDlg.vstTemplatesFocusChanged(Sender: TBaseVirtualTree; Node: PVirtualNode; Column: TColumnIndex);
+begin
+  EnableControls;
+end;
+
+procedure TCreateFileDlg.vstTemplatesGetText(Sender: TBaseVirtualTree; Node: PVirtualNode; Column: TColumnIndex;
+    TextType: TVSTTextType; var CellText: string);
+var
+  Template: TFileTemplate;
+begin
+  Template := TCollectionsUtils.AtValue<TFileTemplate>(FTemplates, Node.Index);
+  if Template = nil then
+    Exit;
+
+  case TextType of
+    ttNormal: CellText := Template.Name;
+    ttStatic: CellText := Format('%d files', [Template.Files.Count]);
+  end;
 end;
 
 { TFileTemplate }
@@ -192,7 +269,6 @@ begin
   Lines := TStringList.Create;
   try
     Lines.LoadFromFile(aTemplateFile);
-    Result.Lines := TStringList.Create;
 
     Result.Column := -1;
     Result.Line := -1;
