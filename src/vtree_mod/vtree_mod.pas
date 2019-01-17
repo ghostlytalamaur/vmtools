@@ -119,11 +119,11 @@ end;
 procedure TExtVirtualStringTree.DoBeforeCellPaint(Canvas: TCanvas; Node: PVirtualNode; Column: TColumnIndex;
   CellPaintMode: TVTCellPaintMode; CellRect: TRect; var ContentRect: TRect);
 begin
-  if AbsoluteIndex(Node) mod 2 = 0 then
-  begin
-    Canvas.Brush.Color := Blend(Colors.BackGroundColor, $000000, 90);
-    Canvas.FillRect(CellRect);
-  end;
+//  if AbsoluteIndex(Node) mod 2 = 0 then
+//  begin
+//    Canvas.Brush.Color := Blend(Colors.BackGroundColor, $000000, 90);
+//    Canvas.FillRect(CellRect);
+//  end;
 
   inherited;
 end;
