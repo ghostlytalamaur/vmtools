@@ -40,6 +40,7 @@ type
     FListObserver: IVMSearchResultsListListener;
 
     FListUpdater: TControlUpdater;
+    FShouldReinit: Boolean;
 
     procedure UpdateList;
 
@@ -261,6 +262,11 @@ begin
   BeginUpdate;
   try
     RootNodeCount := FCurList.Count;
+    if FShouldReinit then
+    begin
+      ReinitNode(nil, True);
+      FShouldReinit := False;
+    end;
   finally
     EndUpdate;
   end;
@@ -274,6 +280,7 @@ begin
   if FCurList <> nil then
     FCurList.Listeners.RemoveListener(FListObserver);
   FCurList := aData;
+  FShouldReinit := True;
   if FCurList <> nil then
     FCurList.Listeners.RegisterListener(FListObserver);
   FListUpdater.RequestUpdate;
