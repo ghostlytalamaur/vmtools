@@ -34,11 +34,9 @@ type
     cst_Reg_Section = 'TCodeSearchEngineParams';
     cst_Reg_ProcessPriority = 'CSearchProcessPriority';
     cst_Reg_ParseTaskCount = 'ParseTaskCount';
-    cst_Reg_UpdateProgressEachItems = 'UpdateProgressEachItems';
   private
     FCSearchProcessPriority: string;
     FParseTaskCount: Integer;
-    FUpdateProgressEachItems: Integer;
   protected
     procedure DoReadParams(aIni: TCustomIniFile); override;
     procedure DoWriteParams(aIni: TCustomIniFile); override;
@@ -48,7 +46,6 @@ type
     { TJclProcessPriority = (ppIdle, ppNormal, ppHigh, ppRealTime, ppBelowNormal, ppAboveNormal) }
     property CSearchProcessPriority: string read FCSearchProcessPriority;
     property ParseTaskCount: Integer read FParseTaskCount;
-    property UpdateProgressEachItems: Integer read FUpdateProgressEachItems;
   end;
 
   TCodeSearchEngineError = (csee_Successful, csee_Unknown, csee_InvalidQuery, csee_NoIndex, csee_Cancelled,
@@ -100,12 +97,14 @@ type
     FLineNum: Integer;
     FFilePath: string;
     FResultsQueue: IOmniBlockingCollection;
+    FProgress: TBaseProgress;
 
     procedure FlushBuffer;
     function ExtractFileInfo(const aLine: string;
         out FilePath, FoundText: string; out LineNum: Integer): Boolean;
+    function TryUpdateStatus(const aLine: string): Boolean;
   public
-    constructor Create(aResQueue: IOmniBlockingCollection);
+    constructor Create(aProgress: TBaseProgress; aResQueue: IOmniBlockingCollection);
     destructor Destroy; override;
     procedure AppendLine(const aLine: string);
   end;
@@ -160,7 +159,7 @@ function TCodeSearchEngine.GetProcessExecutor(aParams: TCodeSearchQueryParams; c
 var
   CmdLine: string;
 begin
-  CmdLine := Format('-n -m %d -M %d', [aParams.MaxResults, aParams.MaxHitsPerFile]);
+  CmdLine := Format('-extstatus -n -m %d -M %d', [aParams.MaxResults, aParams.MaxHitsPerFile]);
   if aIndexFile <> '' then
     CmdLine := CmdLine + ' -indexpath "' + aIndexFile + '"';
   if Trim(aParams.FileRegExp) <> '' then
@@ -213,7 +212,7 @@ begin
     MultilineParser := nil;
     Executor := GetProcessExecutor(aParams, aIndexFile, Task.CancellationToken);
     try
-      MultilineParser := TCodeSearchMultilineParser.Create(output);
+      MultilineParser := TCodeSearchMultilineParser.Create(FProgress, output);
       Executor.Execute(
         procedure (const aLine: string)
         begin
@@ -268,14 +267,12 @@ var
   Pipeline: IOmniPipeline;
   OmniVal: TOmniValue;
   ResultsCount: Integer;
-  TotalFiles: ISet<string>;
 begin
   Result := csee_Unknown;
 
   Pipeline := nil;
   aCallbacks.SearchStarted;
   try
-    TotalFiles := THashSet<string>.Create;
     Pipeline := Parallel.Pipeline
         .Stage(CreateSearchExecutor(aParams, aIndexFile, aCallbacks)).NumTasks(1)
         .Stage(CreateItemAnalyzer(aParams)).NumTasks(2)
@@ -287,12 +284,9 @@ begin
       if Pipeline.Output.TryTake(OmniVal, 10) and OmniVal.IsOwnedObject then
       begin
         aCallbacks.ItemFound(OmniVal);
-        TotalFiles.Add((OmniVal.AsOwnedObject as TSearchItem).FilePath);
         Inc(ResultsCount);
       end;
 
-      if ResultsCount mod math.Max(1, FParams.UpdateProgressEachItems) = 0 then
-        FProgress.Info := IntToStr(ResultsCount) + ' results found in ' + IntToStr(TotalFiles.Count) + ' files.';
       if FProgress.Cancelled then
       begin
         Pipeline.Cancel;
@@ -402,7 +396,6 @@ begin
   inherited;
   FCSearchProcessPriority := aIni.ReadString(cst_Reg_Section, cst_Reg_ProcessPriority, FCSearchProcessPriority);
   FParseTaskCount := aIni.ReadInteger(cst_Reg_Section, cst_Reg_ParseTaskCount, FParseTaskCount);
-  FUpdateProgressEachItems := aIni.ReadInteger(cst_Reg_Section, cst_Reg_UpdateProgressEachItems, FUpdateProgressEachItems);
 end;
 
 procedure TCodeSearchEngineParams.DoWriteParams(aIni: TCustomIniFile);
@@ -410,7 +403,6 @@ begin
   inherited;
   aIni.WriteString(cst_Reg_Section, cst_Reg_ProcessPriority, FCSearchProcessPriority);
   aIni.WriteInteger(cst_Reg_Section, cst_Reg_ParseTaskCount, ParseTaskCount);
-  aIni.WriteInteger(cst_Reg_Section, cst_Reg_UpdateProgressEachItems, FUpdateProgressEachItems);
 end;
 
 procedure TCodeSearchEngineParams.SetDefault;
@@ -418,7 +410,6 @@ begin
   inherited;
   FCSearchProcessPriority := JclProcessPriorityToString(ppNormal);
   FParseTaskCount := 4;
-  FUpdateProgressEachItems := 10;
 end;
 
 { TParserState }
@@ -437,9 +428,10 @@ end;
 
 { TCodeSearchParserQueue }
 
-constructor TCodeSearchMultilineParser.Create(aResQueue: IOmniBlockingCollection);
+constructor TCodeSearchMultilineParser.Create(aProgress: TBaseProgress; aResQueue: IOmniBlockingCollection);
 begin
   inherited Create;
+  FProgress := aProgress;
   FResultsQueue := aResQueue;
   FFoundTextBuffer := TStringList.Create;
 end;
@@ -503,6 +495,9 @@ var
   FilePath, FoundText: string;
   LineNum: Integer;
 begin
+  if TryUpdateStatus(aLine) then
+    Exit;
+
   if ExtractFileInfo(aLine, FilePath, FoundText, LineNum) then
   begin
     FlushBuffer;
@@ -533,6 +528,13 @@ begin
   FLineNum := 0;
   FFilePath := '';
   FFoundTextBuffer.Clear;
+end;
+
+function TCodeSearchMultilineParser.TryUpdateStatus(const aLine: string): Boolean;
+begin
+  Result := aLine.StartsWith('Status: ');
+  if Result then
+    FProgress.Info := aLine.Remove(0, 8);
 end;
 
 end.
