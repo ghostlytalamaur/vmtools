@@ -7,3 +7,6 @@
 [submodule "3rd_parties/FastMM4"]
 	path = 3rd_parties/FastMM4
 	url = https://github.com/pleriche/FastMM4.git
+[submodule "3rd_parties\\vtree"]
+	path = 3rd_parties\\vtree
+	url = https://github.com/Virtual-TreeView/Virtual-TreeView/
