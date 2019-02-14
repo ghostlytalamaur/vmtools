@@ -157,7 +157,10 @@ end;
 function TVMOpenFileWizard.GetParams: TVMOpenFileWizardParams;
 begin
   if FParams = nil then
+  begin
     FParams := TVMOpenFileWizardParams.Create;
+    FParams.ReadParams;
+  end;
   Result := FParams;
 
   if FParamsObserver = nil then

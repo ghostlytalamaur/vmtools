@@ -4,7 +4,7 @@ interface
 
 uses
   vmsys, vm_basewizard, toolsapi, observer, Classes,
-  Windows, ExtCtrls;
+  Windows, ExtCtrls, base_params, opt_impl;
 
 type
   TBaseOTANotifier = class(TInterfacedObject, IOTANotifier)
@@ -60,16 +60,35 @@ type
     property EditLineData: IObservableData<TLineData> read GetEditLineData;
   end;
 
+  TVMHistoryWizardParams = class(TBaseParams)
+  private
+    function GetMinDistanceInLines: Integer;
+    function GetMaxBackwardCount: Integer;
+  public
+    procedure RegisterParams; override;
+  public
+    property MinDistanceInLines: Integer read GetMinDistanceInLines;
+    property MaxBackwardCount: Integer read GetMaxBackwardCount;
+  end;
+
   TVMHistoryWizard = class(TVMBaseWizard)
   private
     FNotifier: TEditLineChangedNotifier;
+    FParams: TVMHistoryWizardParams;
+    FParamsObserver: IParamsChangedObserver;
 
+    procedure ParamsChanged;
     procedure EditLineChanged(const aFileName: string; aCol, aLine: Integer);
+    function GetDistanceInLines(aItem: IOTAHistoryItem; const aFileName: string; aLine: Integer): Integer;
+    function GetParams: TVMHistoryWizardParams;
+    property Params: TVMHistoryWizardParams read GetParams;
   protected
     procedure RegisterWizard; override;
     procedure UnregisterWizard; override;
   public
     destructor Destroy; override;
+
+    function CreateOptionsHandler: INTAAddInOptions; override;
 
     class function GUID: string; override;
     class function Caption: string; override;
@@ -96,7 +115,7 @@ type
 implementation
 
 uses
-  vm_ide_utils, SysUtils, vmtools_cst;
+  vm_ide_utils, SysUtils, vmtools_cst, vm.ide.options.treehandler;
 
 procedure TVMHistoryWizard.RegisterWizard;
 begin
@@ -164,8 +183,14 @@ begin
   Result := SameText(GetItemCaption, Item.GetItemCaption);
 end;
 
+function TVMHistoryWizard.CreateOptionsHandler: INTAAddInOptions;
+begin
+  Result := TVMOptionsTreeHandler.Create('History', Params.Tree);
+end;
+
 destructor TVMHistoryWizard.Destroy;
 begin
+  FreeAndNil(FParams);
   FreeAndNil(FNotifier);
   inherited;
 end;
@@ -182,8 +207,6 @@ end;
 
 procedure TVMHistoryWizard.EditLineChanged(const aFileName: string; aCol,
     aLine: Integer);
-const
-  cstMaxBackwardCount = 40;
 var
   HstSrv: IOTAHistoryServices;
   CurItem, NewItem, LastItem, NextItem: IOTAHistoryItem;
@@ -204,6 +227,18 @@ begin
 
   NewItem := TVMHistoryItem.Create(aFileName, aLine, aCol);
 
+  if Params.MinDistanceInLines > 0 then
+  begin
+    if (LastItem <> nil) and (GetDistanceInLines(LastItem, aFileName, aLine) < Params.MinDistanceInLines) then
+      Exit;
+
+    if (CurItem <> nil) and (GetDistanceInLines(CurItem, aFileName, aLine) < Params.MinDistanceInLines) then
+      Exit;
+
+    if (NextItem <> nil) and (GetDistanceInLines(NextItem, aFileName, aLine) < Params.MinDistanceInLines) then
+      Exit;
+  end;
+
   if (CurItem = nil) and (NextItem = nil) or
       (CurItem <> nil) and not CurItem.IsEqual(NewItem) or
       (CurItem = nil) and (NextItem <> nil) and not NextItem.IsEqual(NewItem) then
@@ -215,8 +250,61 @@ begin
       HstSrv.AddHistoryItem(CurItem, NewItem);
   end;
 
-  while HstSrv.BackwardCount > cstMaxBackwardCount do
+  while HstSrv.BackwardCount > Params.MaxBackwardCount do
     HstSrv.RemoveHistoryItem(HstSrv.BackwardItems[0]);
+end;
+
+function TVMHistoryWizard.GetDistanceInLines(aItem: IOTAHistoryItem; const aFileName: string; aLine: Integer): Integer;
+
+  function ParseCaption(aCaption: string; out FileName: string; out Line: Integer): Boolean;
+  var
+    wPos: Integer;
+    LineStr: string;
+  begin
+    Result := False;
+    FileName := '';
+    Line := -1;
+    wPos := aCaption.LastIndexOf(' ');
+    if wPos < 0 then
+      Exit;
+
+    LineStr := aCaption.Substring(wPos);
+    if TryStrToInt(aCaption.Substring(wPos), Line) then
+      FileName := aCaption.Substring(0, wPos - 1);
+    Result := FileName <> '';
+  end;
+
+var
+  FileName: string;
+  Line: Integer;
+begin
+  // Caption: FFileName + ' ' + IntToStr(FLine);
+  if ParseCaption(aItem.GetItemCaption.Trim, FileName, Line) and
+     (aFileName = FileName) then
+    Result := Abs(aLine - Line)
+  else
+    Result := -1;
+end;
+
+function TVMHistoryWizard.GetParams: TVMHistoryWizardParams;
+begin
+  if FParams = nil then
+  begin
+    FParams := TVMHistoryWizardParams.Create;
+    FParams.ReadParams;
+  end;
+  Result := FParams;
+
+  if FParamsObserver = nil then
+  begin
+    FParamsObserver := TParamsObserver.Create(ParamsChanged);
+    Result.RegisterObserver(IParamsChangedObserver, FParamsObserver);
+  end;
+end;
+
+procedure TVMHistoryWizard.ParamsChanged;
+begin
+  Params.WriteParams;
 end;
 
 constructor TEditLineChangedNotifier.Create;
@@ -319,6 +407,25 @@ begin
     Exit;
 
   FWizard.InfoMsg(Format('Instance: %d; File: %s; Action: %s', [FBufferid, FFileName, 'Modified']));
+end;
+
+{ TVMHistoryWizardParams }
+
+function TVMHistoryWizardParams.GetMaxBackwardCount: Integer;
+begin
+  Result := (Tree.ByKey['MaxBackwardCount'] as TIntegerParam).Value;
+end;
+
+function TVMHistoryWizardParams.GetMinDistanceInLines: Integer;
+begin
+  Result := (Tree.ByKey['MinDistanceInLines'] as TIntegerParam).Value;
+end;
+
+procedure TVMHistoryWizardParams.RegisterParams;
+begin
+  inherited;
+  Tree.RegisterParam(TIntegerParam.Create('MaxBackwardCount', 'Maximum elements in backward stack', 40));
+  Tree.RegisterParam(TIntegerParam.Create('MinDistanceInLines', 'Minimum distance between lines', 5));
 end;
 
 end.
