@@ -74,7 +74,8 @@ uses
   csplg_types in '..\..\src\search\engine_codesearch\csplg_types.pas',
   vm.memodlg in '..\..\src\common\vm.memodlg.pas' {MemoDialog},
   vm.gui.control_updater in '..\..\src\common\vm.gui.control_updater.pas',
-  search_table in '..\..\src\search\search_table.pas';
+  search_table in '..\..\src\search\search_table.pas',
+  vm.ide.debug in '..\..\src\vmtools\common\vm.ide.debug.pas';
 
 {$R *.res}
 

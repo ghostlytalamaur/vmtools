@@ -62,7 +62,7 @@ implementation
 uses
   dialogs, vm_wiz_search_cst, vm_ide_utils, SysUtils, Windows,
   deskutil, vmtools_cst,
-  controls, str_utils;
+  controls, str_utils, vm.debug;
 
 type
   TVMSearchHandler = class(TSearchHandler)
@@ -139,7 +139,6 @@ end;
 
 procedure TVMSearchWizard.OnExecuteSearch(aSender: TObject);
 begin
-  InfoMsg(rs_inf_ExecuteSearch);
   Handler.ExecuteSearch;
 end;
 
@@ -180,7 +179,7 @@ procedure TVMSearchWizard.RefreshShortCuts;
 begin
   ActionManager.BeginUpdate;
   try
-    InfoMsg(cstSearch_Msg_RefreshShortcuts);
+    Logger.i(cstSearch_Msg_RefreshShortcuts);
     UnregisterShortCuts;
     RegisterShortCuts;
   finally

@@ -96,11 +96,10 @@ type
 
   TOtaEditLineChangedNotifier = class(TExtInterfacedObject, IOTAEditLineNotifier)
   private
-    FWizard: TVMHistoryWizard;
     FBufferId: Integer;
     FFileName: string;
   public
-    constructor Create(aWizard: TVMHistoryWizard; aBufferId: Integer; aFileName: string);
+    constructor Create(aBufferId: Integer; aFileName: string);
     { IOTANotifier }
     procedure AfterSave;
     procedure BeforeSave;
@@ -115,7 +114,7 @@ type
 implementation
 
 uses
-  vm_ide_utils, SysUtils, vmtools_cst, vm.ide.options.treehandler;
+  vm_ide_utils, SysUtils, vmtools_cst, vm.ide.options.treehandler, vm.debug, math;
 
 procedure TVMHistoryWizard.RegisterWizard;
 begin
@@ -207,50 +206,40 @@ end;
 
 procedure TVMHistoryWizard.EditLineChanged(const aFileName: string; aCol,
     aLine: Integer);
+
+  function GetAsString(aItem: IOTAHistoryItem): string;
+  begin
+    if aItem = nil then
+      Result := 'none'
+    else
+      Result := aItem.GetItemCaption;
+  end;
 var
   HstSrv: IOTAHistoryServices;
-  CurItem, NewItem, LastItem, NextItem: IOTAHistoryItem;
+  Top, NewItem: IOTAHistoryItem;
+  ShouldAdd: Boolean;
+  Dist: Integer;
 begin
-  LastItem := nil;
-  CurItem := nil;
-  NextItem := nil;
+  LogEnterLeave('TVMHistoryWizard.EditLineChanged');
 
   HstSrv := (BorlandIDEServices as IOTAHistoryServices);
-  if HstSrv.BackwardCount > 0 then
-    LastItem := HstSrv.BackwardItems[HstSrv.BackwardCount - 1];
-
   // when we add first item onto stack HstSrv.BackwardCount = 0
-  try CurItem := HstSrv.BackwardItems[HstSrv.BackwardCount] except on Exception do CurItem := nil; end;
-
-  if HstSrv.ForwardCount > 0 then
-    NextItem := HstSrv.ForwardItems[0];
-
-  NewItem := TVMHistoryItem.Create(aFileName, aLine, aCol);
-
-  if Params.MinDistanceInLines > 0 then
+  try Top := HstSrv.BackwardItems[HstSrv.BackwardCount] except on Exception do Top := nil; end;
+  Dist := GetDistanceInLines(Top, aFileName, aLine);
+  ShouldAdd:= (Dist <> 0) and ((Dist < 0) or (Params.MinDistanceInLines <= 0) or (Dist <= Params.MinDistanceInLines));
+  if ShouldAdd then
   begin
-    if (LastItem <> nil) and (GetDistanceInLines(LastItem, aFileName, aLine) < Params.MinDistanceInLines) then
-      Exit;
-
-    if (CurItem <> nil) and (GetDistanceInLines(CurItem, aFileName, aLine) < Params.MinDistanceInLines) then
-      Exit;
-
-    if (NextItem <> nil) and (GetDistanceInLines(NextItem, aFileName, aLine) < Params.MinDistanceInLines) then
-      Exit;
+    NewItem := TVMHistoryItem.Create(aFileName, aLine, aCol);
+    HstSrv.AddHistoryItem(Top, NewItem);
+    Logger.d('Top: %s; Adding new history entry: %s', [GetAsString(Top), NewItem.GetItemCaption]);
+  end
+  else
+  begin
+    Logger.d('Skipping history entry');
+    Logger.d('Top: %s; aFileName: %s; aLine: %d', [GetAsString(Top), aFileName, aLine]);
   end;
 
-  if (CurItem = nil) and (NextItem = nil) or
-      (CurItem <> nil) and not CurItem.IsEqual(NewItem) or
-      (CurItem = nil) and (NextItem <> nil) and not NextItem.IsEqual(NewItem) then
-  begin
-    if (LastItem <> nil) and (CurItem <> nil) and LastItem.IsEqual(CurItem) then
-      CurItem := nil;
-
-    if (CurItem = nil) or not NewItem.IsEqual(CurItem) then
-      HstSrv.AddHistoryItem(CurItem, NewItem);
-  end;
-
-  while HstSrv.BackwardCount > Params.MaxBackwardCount do
+  while HstSrv.BackwardCount > Math.Max(1, Params.MaxBackwardCount) do
     HstSrv.RemoveHistoryItem(HstSrv.BackwardItems[0]);
 end;
 
@@ -270,7 +259,7 @@ function TVMHistoryWizard.GetDistanceInLines(aItem: IOTAHistoryItem; const aFile
 
     LineStr := aCaption.Substring(wPos);
     if TryStrToInt(aCaption.Substring(wPos), Line) then
-      FileName := aCaption.Substring(0, wPos - 1);
+      FileName := aCaption.Substring(0, wPos);
     Result := FileName <> '';
   end;
 
@@ -279,7 +268,8 @@ var
   Line: Integer;
 begin
   // Caption: FFileName + ' ' + IntToStr(FLine);
-  if ParseCaption(aItem.GetItemCaption.Trim, FileName, Line) and
+  if (aItem <> nil) and
+      ParseCaption(aItem.GetItemCaption.Trim, FileName, Line) and
      (aFileName = FileName) then
     Result := Abs(aLine - Line)
   else
@@ -361,52 +351,36 @@ end;
 
 procedure TOtaEditLineChangedNotifier.AfterSave;
 begin
-  if FWizard = nil then
-    Exit;
-
-  FWizard.InfoMsg(Format('Instance: %d; File: %s; Action: %s', [FBufferid, FFileName, 'AfterSave']));
+  Logger.d('Instance: %d; File: %s; Action: %s', [FBufferid, FFileName, 'AfterSave']);
 end;
 
 procedure TOtaEditLineChangedNotifier.BeforeSave;
 begin
-  if FWizard = nil then
-    Exit;
-
-  FWizard.InfoMsg(Format('Instance: %d; File: %s; Action: %s', [FBufferid, FFileName, 'BeforeSave']));
+  Logger.d('Instance: %d; File: %s; Action: %s', [FBufferid, FFileName, 'BeforeSave']);
 end;
 
-constructor TOtaEditLineChangedNotifier.Create(aWizard: TVMHistoryWizard; aBufferId: Integer; aFileName: string);
+constructor TOtaEditLineChangedNotifier.Create(aBufferId: Integer; aFileName: string);
 begin
   inherited Create;
 
   FBufferId := aBufferId;
   FFileName := aFileName;
-  SetNotifiableObjectProperty(@FWizard, aWizard);
 end;
 
 procedure TOtaEditLineChangedNotifier.Destroyed;
 begin
-  if FWizard = nil then
-    Exit;
-
-  FWizard.InfoMsg(Format('Instance: %d; File: %s; Action: %s', [FBufferid, FFileName, 'Destroyed']));
+  Logger.d('Instance: %d; File: %s; Action: %s', [FBufferid, FFileName, 'Destroyed']);
 end;
 
 procedure TOtaEditLineChangedNotifier.LineChanged(OldLine, NewLine, Data: Integer);
 begin
-  if FWizard = nil then
-    Exit;
-
-  FWizard.InfoMsg(Format('Instance: %d; File: %s; Action: LineChanged: OldLine: %d; NewLine: %d; Data: %d', [
-      FBufferid, FFileName, OldLine, NewLine, Data]));
+  Logger.d('Instance: %d; File: %s; Action: LineChanged: OldLine: %d; NewLine: %d; Data: %d', [
+      FBufferid, FFileName, OldLine, NewLine, Data]);
 end;
 
 procedure TOtaEditLineChangedNotifier.Modified;
 begin
-  if FWizard = nil then
-    Exit;
-
-  FWizard.InfoMsg(Format('Instance: %d; File: %s; Action: %s', [FBufferid, FFileName, 'Modified']));
+  Logger.d('Instance: %d; File: %s; Action: %s', [FBufferid, FFileName, 'Modified']);
 end;
 
 { TVMHistoryWizardParams }

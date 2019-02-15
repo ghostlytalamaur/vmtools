@@ -26,9 +26,6 @@ type
     constructor Create(aServices: IWizzardsServices);
     destructor Destroy; override;
 
-    procedure ErrorMsg(aError: string);
-    procedure InfoMsg(aError: string);
-
     function CreateOptionsHandler: INTAAddInOptions; virtual;
 
     class function GUID: string; virtual;
@@ -40,7 +37,7 @@ type
 implementation
 
 uses
-  dialogs, SysUtils, vmtools_cst;
+  dialogs, SysUtils, vmtools_cst, vm.debug;
 
 { TVMBaseWizard }
 
@@ -78,26 +75,9 @@ begin
   Result := ClassName;
 end;
 
-procedure TVMBaseWizard.ErrorMsg(aError: string);
-var
-  Intf: IDebugNotifier;
-begin
-  if (aError <> '') and Supports(FServices, IDebugNotifier, Intf) then
-    Intf.SendError(aError);
-end;
-
-procedure TVMBaseWizard.InfoMsg(aError: string);
-var
-  Intf: IDebugNotifier;
-begin
-  if (aError <> '') and Supports(FServices, IDebugNotifier, Intf) then
-    Intf.SendInfo(aError);
-end;
-
-
 procedure TVMBaseWizard.RegisterWizard;
 begin
-  InfoMsg(Format(rs_Msg_RegisterWizard, [Caption]));
+  Logger.i(rs_Msg_RegisterWizard, [Caption]);
 end;
 
 procedure TVMBaseWizard.SetIsActive(const Value: Boolean);

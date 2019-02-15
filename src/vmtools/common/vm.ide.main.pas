@@ -72,10 +72,15 @@ uses
   vmsys, sysutils,
   vm_options_dlg, windows, vm.ide.actions.manager, forms, opt_frame,
   vm.ide.actions.options_frame, vm.ide.options.handler, vm.ide.actions.options_handler,
-  vm.ide.options.treehandler, vm.debug;
+  vm.ide.options.treehandler, vm.debug, CnDebug;
 
 
 type
+  TCnDebugLogger = class(TAbstractLogger)
+  protected
+    procedure Log(aType: TAbstractLogger.TLogType; const aMsg: string); override;
+  end;
+
   TInitHelper = class(TObject)
   private
     FInitTimer: TTimer;
@@ -86,10 +91,8 @@ type
     constructor Create(CallBack: TNotifyEvent);
   end;
 
-  TWizardServices = class(TInterfacedObject, IWizzardsServices, IDebugNotifier)
+  TWizardServices = class(TInterfacedObject, IWizzardsServices)
   private
-    FMsgGroup: IOTAMessageGroup;
-
     FActManager: TVMActionManager;
 
     FStartingUp: Boolean;
@@ -104,12 +107,6 @@ type
     { IWizzardsServices }
     function GetActionManager: TVMActionManager;
     function StartingUp: Boolean;
-
-    { IDebugNotifier }
-    procedure SendError(const aMsg: string);
-    procedure SendInfo(const aMsg: string);
-
-    procedure AddMessage(const aMsg: string);
   end;
 
   TWizardParam = class(TBooleanParam)
@@ -155,29 +152,6 @@ end;
 function TWizardServices.StartingUp: Boolean;
 begin
   Result := FStartingUp;
-end;
-
-procedure TWizardServices.SendError(const aMsg: string);
-begin
-  AddMessage('Error: ' + aMsg);
-end;
-
-procedure TWizardServices.SendInfo(const aMsg: string);
-begin
-  AddMessage('Info: ' + aMsg);
-end;
-
-procedure TWizardServices.AddMessage(const aMsg: string);
-var
-  Srv: IOTAMessageServices;
-begin
-  Srv := (BorlandIDEServices as IOTAMessageServices);
-  if Srv = nil then
-    Exit;
-  if FMsgGroup = nil then
-    FMsgGroup := Srv.AddMessageGroup('VM Tools');
-
-  Srv.AddTitleMessage(aMsg, FMsgGroup);
 end;
 
 { TVMMainWizard }
@@ -439,6 +413,23 @@ begin
   Value := aWizard.IsActive;
   FWizard := TObjectHolder<TVMBaseWizard>.Create(aWizard, False);
 end;
+
+{ TCnDebugLogger }
+
+procedure TCnDebugLogger.Log(aType: TAbstractLogger.TLogType; const aMsg: string);
+begin
+  case aType of
+    lpInfo:       CnDebugger.LogMsg('[Info] ' + aMsg);
+    lpWarning:    CnDebugger.LogMsg('[Warning] ' + aMsg);
+    lpError:      CnDebugger.LogMsg('[Error] ' + aMsg);
+    lpDebug:      CnDebugger.LogMsg('[Debug] ' + aMsg);
+    ltGroupStart: CnDebugger.LogEnter(aMsg);
+    ltGroupEnd:   CnDebugger.LogLeave(aMsg);
+  end;
+end;
+
+initialization
+  SetLogger(TCnDebugLogger.Create);
 
 end.
 

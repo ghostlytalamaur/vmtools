@@ -237,7 +237,7 @@ procedure TVMOpenFileWizard.RefreshShortCuts;
 begin
   ActionManager.BeginUpdate;
   try
-    InfoMsg(cstOpenFile_Msg_RefreshShortcuts);
+    Logger.i(cstOpenFile_Msg_RefreshShortcuts);
     UnregisterShortCuts;
     RegisterShortCuts;
   finally
@@ -379,7 +379,7 @@ procedure TIDENotifier.FileNotification(NotifyCode: TOTAFileNotification; const 
   end;
 
 begin
-  OutputDebugString(PWideChar(NotifyCodeToString(NotifyCode)));
+  Logger.d('%s: FileName: %s', [NotifyCodeToString(NotifyCode), FileName]);
   case NotifyCode of
 //    ofnFileOpening, ofnFileOpened, ofnFileClosing,
 //    ofnDefaultDesktopLoad, ofnDefaultDesktopSave, ofnProjectDesktopLoad,

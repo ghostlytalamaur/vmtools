@@ -40,7 +40,7 @@ type
 implementation
 
 uses
-  Menus, vm_ide_utils, vmtools_cst, SysUtils;
+  Menus, vm_ide_utils, vmtools_cst, SysUtils, vm.debug;
 
 { TVMActivateEditorWizard }
 
@@ -95,7 +95,7 @@ procedure TVMActivateEditorWizard.RefreshShortCuts;
 begin
   ActionManager.BeginUpdate;
   try
-    InfoMsg(cstActivateEditor_Msg_RefreshShortcuts);
+    Logger.i(cstActivateEditor_Msg_RefreshShortcuts);
     UnregisterShortCuts;
     RegisterShortCuts;
   finally

@@ -13,7 +13,7 @@ function InitWizard(const BIDES: IBorlandIDEServices; RegisterProc: TWizardRegis
 implementation
 
 uses
-  vm.ide.main, forms, vm.ide.main.wizreg, vm.debug;
+  vm.ide.main, forms, vm.ide.main.wizreg, vm.debug, sysutils;
 
 const
   InvalidIndex = -1;
@@ -27,7 +27,7 @@ var
   WizardServices: IOTAWizardServices;
 begin
   LogEnterLeave('VMTools: FinalizeWizard');
-  Logger.LogBoolean(iWizard <> InvalidIndex, 'Has wizard');
+  Logger.d('Has wizard: %s', [BoolToStr(iWizard <> InvalidIndex, True)]);
   if iWizard <> InvalidIndex then
   begin
     Assert(Assigned(BorlandIDEServices));

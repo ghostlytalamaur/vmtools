@@ -518,7 +518,7 @@ begin
   begin
     MenuItem.Parent.Remove(MenuItem);
     FreeAndNil(MenuItem);
-    Logger.LogFmt('MenuAction %s unregistered', [aName]);
+    Logger.d('MenuAction %s unregistered', [aName]);
   end;
 
   if Result and (FMainMenu.Count = 0) and (FMainMenu.Parent <> nil) and FMenuInstalled then
@@ -566,18 +566,24 @@ begin
     Exit;
 
   ActionList := FActionManager.Obj.OwnActionList;
-  Logger.LogInteger(ActionList.Count, 'ActionList.Count');
+  Logger.d('ActionList.Count: %d', [ActionList.Count]);
   for I := 0 to ActionList.Count - 1 do
   begin
-    Logger.LogFmt('Aciton %s; Shortcut: %s; HasActionList: %d', [ActionList[I].Name,
+    Logger.d('Aciton %s; Shortcut: %s; HasActionList: %d', [ActionList[I].Name,
         ShortCutToText((ActionList[I] as TCustomAction).ShortCut), Ord(ActionList[I].ActionList <> nil)]);
 
     if ActionList[I].ActionList = nil then
       Continue;
 
     if (ActionList[I] as TCustomAction).ShortCut <> 0 then
-      BindingServices.AddKeyBinding([(ActionList[I] as TCustomAction).ShortCut], KeyBindingHandler, nil,
-          DefaultKeyBindingsFlag, KeyboardName);
+    begin
+      if not BindingServices.AddKeyBinding([(ActionList[I] as TCustomAction).ShortCut], KeyBindingHandler, nil,
+          DefaultKeyBindingsFlag, KeyboardName) then
+        Logger.i('Cannot add keybinding %s for action %s', [
+            ShortCutToText((ActionList[I] as TCustomAction).ShortCut),
+            (ActionList[I] as TCustomAction).Caption
+        ]);
+    end;
   end;
 end;
 
@@ -593,7 +599,7 @@ begin
     Exit;
 
   Action := FActionManager.Obj.FindAction(KeyCode);
-  Logger.LogFmt('TVMKeyboardBinding.KeyBindingHandler: KeyCode: %s; HasAction: %s', [
+  Logger.d('TVMKeyboardBinding.KeyBindingHandler: KeyCode: %s; HasAction: %s', [
       ShortCutToText(KeyCode), BoolToStr(Action <> nil, True)]);
   if Action <> nil then
   begin
