@@ -28,7 +28,7 @@ type
 implementation
 
 uses
-  sysutils;
+  sysutils, forms, classes;
 
 type
   TOTAMessageNotifier = class(TInterfacedObject, IOTANotifier, IOTAMessageNotifier, IMessageGroupProvider)
@@ -82,14 +82,17 @@ var
   LineRef: Pointer;
 begin
   try
+    if (Application = nil) or (Application.ComponentState * [csDestroying] <> []) then
+      Exit;
+
     if (GetMessageGroup = nil) or not Supports(BorlandIDEServices, IOTAMessageServices, Srv) then
       Exit;
 
     case aType of
-      lpInfo:       Prefix := 'Info';
-      lpWarning:    Prefix := 'Warning';
-      lpError:      Prefix := 'Error';
-      lpDebug:      Prefix := 'Debug';
+      ltInfo:       Prefix := 'Info';
+      ltWarning:    Prefix := 'Warning';
+      ltError:      Prefix := 'Error';
+      ltDebug:      Prefix := 'Debug';
       ltGroupStart: Prefix := '[Start]';
       ltGroupEnd:   Prefix := '[End]';
     end;
@@ -145,8 +148,5 @@ begin
   if (Group = FMessageGroup) then
     FMessageGroup := nil;
 end;
-
-//initialization
-//  SetLogger(TIDELogger.Create);
 
 end.

@@ -226,18 +226,16 @@ begin
   // when we add first item onto stack HstSrv.BackwardCount = 0
   try Top := HstSrv.BackwardItems[HstSrv.BackwardCount] except on Exception do Top := nil; end;
   Dist := GetDistanceInLines(Top, aFileName, aLine);
-  ShouldAdd:= (Dist <> 0) and ((Dist < 0) or (Params.MinDistanceInLines <= 0) or (Dist <= Params.MinDistanceInLines));
+  ShouldAdd:= (Dist <> 0) and ((Dist < 0) or (Params.MinDistanceInLines <= 0) or (Dist > Params.MinDistanceInLines));
   if ShouldAdd then
   begin
     NewItem := TVMHistoryItem.Create(aFileName, aLine, aCol);
     HstSrv.AddHistoryItem(Top, NewItem);
-    Logger.d('Top: %s; Adding new history entry: %s', [GetAsString(Top), NewItem.GetItemCaption]);
+    Logger.d('Adding history entry');
   end
   else
-  begin
     Logger.d('Skipping history entry');
-    Logger.d('Top: %s; aFileName: %s; aLine: %d', [GetAsString(Top), aFileName, aLine]);
-  end;
+  Logger.d('Top: %s; aFileName: %s; aLine: %d', [GetAsString(Top), aFileName, aLine]);
 
   while HstSrv.BackwardCount > Math.Max(1, Params.MaxBackwardCount) do
     HstSrv.RemoveHistoryItem(HstSrv.BackwardItems[0]);

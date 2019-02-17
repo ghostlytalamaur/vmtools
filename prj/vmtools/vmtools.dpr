@@ -75,7 +75,8 @@ uses
   vm.memodlg in '..\..\src\common\vm.memodlg.pas' {MemoDialog},
   vm.gui.control_updater in '..\..\src\common\vm.gui.control_updater.pas',
   search_table in '..\..\src\search\search_table.pas',
-  vm.ide.debug in '..\..\src\vmtools\common\vm.ide.debug.pas';
+  vm.ide.debug in '..\..\src\vmtools\common\vm.ide.debug.pas',
+  vm.cn_debug in '..\..\src\common\vm.cn_debug.pas';
 
 {$R *.res}
 

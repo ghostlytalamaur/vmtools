@@ -72,15 +72,10 @@ uses
   vmsys, sysutils,
   vm_options_dlg, windows, vm.ide.actions.manager, forms, opt_frame,
   vm.ide.actions.options_frame, vm.ide.options.handler, vm.ide.actions.options_handler,
-  vm.ide.options.treehandler, vm.debug, CnDebug;
+  vm.ide.options.treehandler, vm.debug, vm.cn_debug, vm.ide.debug, str_utils, collections.common;
 
 
 type
-  TCnDebugLogger = class(TAbstractLogger)
-  protected
-    procedure Log(aType: TAbstractLogger.TLogType; const aMsg: string); override;
-  end;
-
   TInitHelper = class(TObject)
   private
     FInitTimer: TTimer;
@@ -116,6 +111,26 @@ type
     procedure CopyFrom(aFrom: TBaseParam); override;
   public
     constructor Create(aWizard: TVMBaseWizard);
+  end;
+
+  TVMLoggerParams = class(TBaseParams)
+  public type
+    TLogger = (
+      logIDE,
+      logCNDebug
+    );
+    TLoggers = set of TLogger;
+  private
+    FLoggers: TLoggers;
+    FLogLevel: TAbstractLogger.TLogLevel;
+  protected
+    procedure DoReadParams(aIni: TCustomIniFile); override;
+    procedure DoWriteParams(aIni: TCustomIniFile); override;
+  public
+    procedure SetDefault; override;
+
+    property Loggers: TLoggers read FLoggers;
+    property LogLevel: TAbstractLogger.TLogLevel read FLogLevel;
   end;
 
 { TWizardServices }
@@ -414,22 +429,98 @@ begin
   FWizard := TObjectHolder<TVMBaseWizard>.Create(aWizard, False);
 end;
 
-{ TCnDebugLogger }
-
-procedure TCnDebugLogger.Log(aType: TAbstractLogger.TLogType; const aMsg: string);
+procedure SetupLogger;
+var
+  Params: TVMLoggerParams;
 begin
-  case aType of
-    lpInfo:       CnDebugger.LogMsg('[Info] ' + aMsg);
-    lpWarning:    CnDebugger.LogMsg('[Warning] ' + aMsg);
-    lpError:      CnDebugger.LogMsg('[Error] ' + aMsg);
-    lpDebug:      CnDebugger.LogMsg('[Debug] ' + aMsg);
-    ltGroupStart: CnDebugger.LogEnter(aMsg);
-    ltGroupEnd:   CnDebugger.LogLeave(aMsg);
+  Params := TVMLoggerParams.Create;
+  try
+    Params.ReadParams;
+
+    Logger.LogLevel := Params.LogLevel;
+    if logIDE in Params.Loggers then
+      Logger.AppendLogger('IDE', TIDELogger.Create(Params.LogLevel));
+    if logCNDebug in Params.Loggers then
+      Logger.AppendLogger('CNDEBUG', TCnDebugLogger.Create(Params.LogLevel));
+  finally
+    FreeAndNil(Params);
   end;
 end;
 
+{ TVMLoggerParams }
+
+procedure TVMLoggerParams.DoReadParams(aIni: TCustomIniFile);
+
+  function AsString(aLoggers: TLoggers): string;
+  begin
+    Result := '';
+    if logIDE in FLoggers then
+      Result := 'IDE';
+    if logCNDebug in FLoggers then
+      Result := TStrUtils.Join([Result, 'CNDebug'], ',');
+  end;
+
+  function LogLevelAsString(aLogLevel: TAbstractLogger.TLogLevel): string;
+  begin
+    case aLogLevel of
+      llNone:    Result := 'NONE';
+      llInfo:    Result := 'INFO';
+      llWarning: Result := 'WARNING';
+      llError:   Result := 'ERROR';
+      llDebug:   Result := 'DEBUG';
+    else         Result := 'NONE';
+    end;
+  end;
+
+  function LogLevelFromString(aLogLevel: string): TAbstractLogger.TLogLevel;
+  begin
+    if SameText(aLogLevel, 'NONE') then
+      Result := llNone
+    else if SameText(aLogLevel, 'INFO') then
+      Result := llInfo
+    else if SameText(aLogLevel, 'WARNING') then
+      Result := llWarning
+    else if SameText(aLogLevel, 'ERROR') then
+      Result := llError
+    else if SameText(aLogLevel, 'DEBUG') then
+      Result := llDebug
+    else
+      Result := llNone;
+  end;
+
+var
+  Item: string;
+begin
+  inherited;
+  for Item in TStrUtils.Words(aIni.ReadString('Logging', 'LoggerTypes', AsString(FLoggers)), [',']) do
+    if SameText(Item, 'IDE') then
+      Include(FLoggers, logIDE)
+    else if SameText(Item, 'CNDebug') then
+      Include(FLoggers, logCNDebug);
+
+  FLogLevel := LogLevelFromString(aIni.ReadString('Logging', 'LogLevel', LogLevelAsString(LogLevel)));
+end;
+
+procedure TVMLoggerParams.DoWriteParams(aIni: TCustomIniFile);
+begin
+  inherited;
+end;
+
+procedure TVMLoggerParams.SetDefault;
+begin
+  inherited;
+{$IFDEF DEBUG}
+  FLoggers := [logIDE, logCNDebug];
+  FLogLevel := llDebug;
+{$ELSE}
+  FLoggers := [logIDE];
+  FLogLevel := llInfo;
+{$ENDIF}
+end;
+
 initialization
-  SetLogger(TCnDebugLogger.Create);
+  SetupLogger;
+
 
 end.
 

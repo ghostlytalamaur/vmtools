@@ -3,24 +3,39 @@ unit vm.debug;
 interface
 
 uses
-  cndebug;
+  cndebug, generics.collections;
 
 
 type
   TAbstractLogger = class
   public type
+    TLogLevel = (
+      llNone,
+      llInfo,
+      llWarning,
+      llError,
+      llDebug
+    );
     TLogType = (
-      lpInfo,
-      lpWarning,
-      lpError,
-      lpDebug,
+      ltInfo,
+      ltWarning,
+      ltError,
+      ltDebug,
       ltGroupStart,
       ltGroupEnd
     );
 
+  private
+    FLogLevel: TLogLevel;
+
+    procedure SendLog(aLogType: TAbstractLogger.TLogType; const aMsg: string); overload;
+    procedure SendLog(aLogType: TAbstractLogger.TLogType; const aMsg: string; const aArgs: array of const); overload;
   protected
-    procedure Log(aPriority: TLogType; const aMsg: string); virtual; abstract;
+    procedure Log(aLogType: TAbstractLogger.TLogType; const aMsg: string); virtual; abstract;
+    function ShouldLog(aLogType: TAbstractLogger.TLogType): Boolean; virtual;
+    function FormatMessage(const aMsg: string; const aArgs: array of const): string; virtual;
   public
+    constructor Create(aLogLevel: TAbstractLogger.TLogLevel);
     procedure startGroup(const aMsg: string);
     procedure endGroup(const aMsg: string);
     procedure i(const aMsg: string); overload;
@@ -29,12 +44,23 @@ type
     procedure d(const aMsg: string; const aArgs: array of const); overload;
     procedure e(const aMsg: string); overload;
     procedure e(const aMsg: string; const aArgs: array of const); overload;
+
+    property LogLevel: TLogLevel read FLogLevel write FLogLevel;
+  end;
+
+  TMultiLogger = class(TAbstractLogger)
+  private
+    FLoggers: TDictionary<string, TAbstractLogger>;
+  protected
+    function ShouldLog(aLogType: TAbstractLogger.TLogType): Boolean; override;
+    procedure Log(aType: TAbstractLogger.TLogType; const aMsg: string); override;
+  public
+    procedure AppendLogger(aKey: string; aLogger: TAbstractLogger);
   end;
 
 
 function LogEnterLeave(const aMsg: string; aTag: string = ''): IInterface;
-function Logger: TAbstractLogger;
-procedure SetLogger(aLogger: TAbstractLogger);
+function Logger: TMultiLogger;
 
 implementation
 
@@ -42,15 +68,9 @@ uses
   sysutils;
 
 var
-  __Logger: TAbstractLogger = nil;
-  __NullLogger: TAbstractLogger = nil;
+  __Logger: TMultiLogger = nil;
 
 type
-  TNullLogger = class(TAbstractLogger)
-  protected
-    procedure Log(aPriority: TAbstractLogger.TLogType; const aMsg: string); override;
-  end;
-
   TEnterLeaveLogger = class(TInterfacedObject)
   private
     FMsg: string;
@@ -82,81 +102,118 @@ begin
   Result := TEnterLeaveLogger.Create(aMsg, aTag);
 end;
 
-function Logger: TAbstractLogger;
+function Logger: TMultiLogger;
 begin
-  if __Logger <> nil then
-  begin
-    Result := __Logger;
-  end
-  else
-  begin
-    if __NullLogger = nil then
-      __NullLogger := TNullLogger.Create;
-    Result := __NullLogger;
-  end;
-end;
-
-procedure SetLogger(aLogger: TAbstractLogger);
-begin
-  if __Logger = aLogger then
-    Exit;
-
-  FreeAndNil(__Logger);
-  __Logger := aLogger;
+  if __Logger = nil then
+    __Logger := TMultiLogger.Create(llDebug);
+  Result := __Logger;
 end;
 
 { TAbstractLogger }
 
 procedure TAbstractLogger.d(const aMsg: string);
 begin
-  Log(lpDebug, aMsg);
+  SendLog(ltDebug, aMsg);
+end;
+
+constructor TAbstractLogger.Create(aLogLevel: TAbstractLogger.TLogLevel);
+begin
+  inherited Create;
+  FLogLevel := aLogLevel;
 end;
 
 procedure TAbstractLogger.d(const aMsg: string; const aArgs: array of const);
 begin
-  Log(lpDebug, Format(aMsg, aArgs));
+  SendLog(ltDebug, aMsg, aArgs);
 end;
 
 procedure TAbstractLogger.e(const aMsg: string);
 begin
-  Log(lpError, aMsg);
+  SendLog(ltError, aMsg);
 end;
 
 procedure TAbstractLogger.e(const aMsg: string; const aArgs: array of const);
 begin
-  Log(lpError, Format(aMsg, aArgs));
+  SendLog(ltError, aMsg, aArgs);
 end;
 
 procedure TAbstractLogger.endGroup(const aMsg: string);
 begin
-  Log(ltGroupEnd, aMsg);
+  SendLog(ltGroupEnd, aMsg);
+end;
+
+function TAbstractLogger.FormatMessage(const aMsg: string; const aArgs: array of const): string;
+begin
+  Result := Format(aMsg, aArgs);
 end;
 
 procedure TAbstractLogger.i(const aMsg: string; const aArgs: array of const);
 begin
-  Log(lpInfo, Format(aMsg, aArgs));
+  SendLog(ltInfo, aMsg, aArgs);
+end;
+
+function TAbstractLogger.ShouldLog(aLogType: TAbstractLogger.TLogType): Boolean;
+begin
+  case LogLevel of
+    llNone:    Result := False;
+    llInfo:    Result := aLogType = ltInfo;
+    llWarning: Result := aLogType in [ltInfo, ltWarning];
+    llError:   Result := aLogType in [ltInfo, ltWarning, ltError];
+    llDebug:   Result := aLogType in [ltInfo, ltWarning, ltError, ltDebug, ltGroupStart, ltGroupEnd];
+  else         Result := False;
+  end;
+end;
+
+procedure TAbstractLogger.SendLog(aLogType: TAbstractLogger.TLogType; const aMsg: string);
+begin
+  if ShouldLog(aLogType) then
+    Log(aLogType, aMsg);
+end;
+
+procedure TAbstractLogger.SendLog(aLogType: TAbstractLogger.TLogType; const aMsg: string; const aArgs: array of const);
+begin
+  if ShouldLog(aLogType) then
+    Log(aLogType, FormatMessage(aMsg, aArgs));
 end;
 
 procedure TAbstractLogger.startGroup(const aMsg: string);
 begin
-  Log(ltGroupStart, aMsg);
+  SendLog(ltGroupStart, aMsg);
 end;
 
 procedure TAbstractLogger.i(const aMsg: string);
 begin
-  Log(lpInfo, aMsg);
+  SendLog(ltInfo, aMsg);
 end;
 
-{ TNullLogger }
+{ TMultiLogger }
 
-procedure TNullLogger.Log(aPriority: TAbstractLogger.TLogType; const aMsg: string);
+procedure TMultiLogger.AppendLogger(aKey: string; aLogger: TAbstractLogger);
 begin
+  if aLogger = nil then
+    Exit;
+  if FLoggers = nil then
+    FLoggers := TObjectDictionary<string, TAbstractLogger>.Create([doOwnsValues]);
+  FLoggers.AddOrSetValue(aKey, aLogger);
+end;
+
+procedure TMultiLogger.Log(aType: TAbstractLogger.TLogType; const aMsg: string);
+var
+  L: TAbstractLogger;
+begin
+  if FLoggers <> nil then
+    for L in FLoggers.Values do
+      L.SendLog(aType, aMsg);
+end;
+
+function TMultiLogger.ShouldLog(aLogType: TAbstractLogger.TLogType): Boolean;
+begin
+  Result := (FLoggers <> nil) and (FLoggers.Count > 0) and inherited;
 end;
 
 initialization
 
 finalization
   FreeAndNil(__Logger);
-  FreeAndNil(__NullLogger);
 
 end.
