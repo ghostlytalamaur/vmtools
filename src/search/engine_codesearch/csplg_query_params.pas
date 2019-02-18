@@ -11,6 +11,7 @@ type
     cst_Reg_Section           = 'CodeSearchQueryParams';
     cst_Reg_QueryText         = 'QueryText';
     cst_Reg_FileRegExp        = 'FileRegExp';
+    cst_Reg_FileExcludeRegExp = 'FileExcludeRegExp';
     cst_Reg_IgnoreCase        = 'IgnoreCase';
     cst_Reg_MaxResults        = 'MaxResults';
     cst_Reg_MaxHitsPerFile    = 'MaxHitsPerFile';
@@ -19,6 +20,7 @@ type
     cst_Reg_UseRe2            = 'UseNativeGoRegexp';
   private
     function GetFileRegExp: string;
+    function GetFileExcludeRegExp: string;
     function GetIgnoreCase: Boolean;
     function GetInProjectPathsOnly: Boolean;
     function GetMaxHitsPerFile: Integer;
@@ -34,6 +36,7 @@ type
     procedure SetQueryText(const Value: string);
     procedure SetAddLines(const Value: Integer);
     procedure SetUseRe2(const Value: Boolean);
+    procedure SetFileExcludeRegExp(const Value: string);
   protected
     procedure RegisterParams; override;
     function CreateTree: TParamsTree; override;
@@ -46,6 +49,7 @@ type
     property InProjectPathsOnly: Boolean read GetInProjectPathsOnly write SetInProjectPathsOnly;
     property AddLines: Integer read GetAddLines write SetAddLines;
     property UseRe2: Boolean read GetUseRe2 write SetUseRe2;
+    property FileExcludeRegExp: string read GetFileExcludeRegExp write SetFileExcludeRegExp;
   end;
 
 implementation
@@ -63,6 +67,11 @@ end;
 function TCodeSearchQueryParams.GetUseRe2: Boolean;
 begin
   Result := (Tree.ByKey[cst_Reg_UseRe2] as TBooleanParam).Value;
+end;
+
+function TCodeSearchQueryParams.GetFileExcludeRegExp: string;
+begin
+  Result := (Tree.ByKey[cst_Reg_FileExcludeRegExp] as TStringParam).Value;
 end;
 
 function TCodeSearchQueryParams.GetFileRegExp: string;
@@ -101,6 +110,7 @@ begin
 
   Tree.RegisterParam(TStringParam.Create(cst_Reg_QueryText, '', [pfInvisible], ''));
   Tree.RegisterParam(TStringParam.Create(cst_Reg_FileRegExp, 'File reg exp', [pfInvisible], ''));
+  Tree.RegisterParam(TStringParam.Create(cst_Reg_FileExcludeRegExp, 'File reg exp to exclude from search', ''));
   Tree.RegisterParam(TBooleanParam.Create(cst_Reg_IgnoreCase, 'Ignore case', True));
   Tree.RegisterParam(TBooleanParam.Create(cst_Reg_InProjectPathsOnly, 'In project paths only', True));
   Tree.RegisterParam(TIntegerParam.Create(cst_Reg_MaxResults, 'Max results', 0));
@@ -117,6 +127,11 @@ end;
 procedure TCodeSearchQueryParams.SetUseRe2(const Value: Boolean);
 begin
   (Tree.ByKey[cst_Reg_UseRe2] as TBooleanParam).Value := Value;;
+end;
+
+procedure TCodeSearchQueryParams.SetFileExcludeRegExp(const Value: string);
+begin
+  (Tree.ByKey[cst_Reg_FileExcludeRegExp] as TStringParam).Value := Value;
 end;
 
 procedure TCodeSearchQueryParams.SetFileRegExp(const Value: string);

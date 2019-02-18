@@ -165,6 +165,9 @@ begin
   if Trim(aParams.FileRegExp) <> '' then
     CmdLine := CmdLine + ' -f ' + '"' + aParams.FileRegExp + '"';
 
+  if Trim(aParams.FileExcludeRegExp) <> '' then
+    CmdLine := CmdLine + ' -fexclude ' + '"' + aParams.FileExcludeRegExp + '"';
+
   if (FValidPaths <> nil) and (FValidPaths.Count > 0) then
     CmdLine := CmdLine + ' -ignorepathscase -filepaths "' + TStrUtils.Join(FValidPaths.ToStringArray, '|') + '"';
 
