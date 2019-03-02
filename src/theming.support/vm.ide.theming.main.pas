@@ -231,9 +231,15 @@ begin
 end;
 
 procedure TThemingHelper.RemoveStyle;
+var
+  Srv: IOTAIDEThemingServices;
 begin
   try
+    if not Supports(BorlandIDEServices, IOTAIDEThemingServices, Srv) then
+      Exit;
+
     SendDebug('RemoveStyle');
+    TStyleManager.UnRegisterStyle(Srv.StyleServices);
     if FInitialStyleName <> '' then
     begin
       TStyleManager.SetStyle(FInitialStyleName);
