@@ -196,9 +196,9 @@ begin
     ActionManager.RegisterInternalMenuAction(act_capt_ShowSearchDlg, OnShowSearchReultsDlg,
         ShortCut(TextToShortCut('D'), [ssShift, ssAlt]));
     ActionManager.RegisterInternalAction(act_name_ShowSearchPrev, OnShowPrevResult,
-        ShortCut(VK_UP, [ssCtrl, ssAlt, ssShift]));
+        ShortCut(VK_UP, [ssAlt, ssShift]));
     ActionManager.RegisterInternalAction(act_name_ShowSearchNext, OnShowNextResult,
-        ShortCut(VK_DOWN, [ssCtrl, ssAlt, ssShift]));
+        ShortCut(VK_DOWN, [ssAlt, ssShift]));
   finally
     ActionManager.EndUpdate;
   end;

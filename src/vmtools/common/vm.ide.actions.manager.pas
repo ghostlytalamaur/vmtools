@@ -381,9 +381,14 @@ var
   Act: TContainedAction;
 begin
   if not FParams.GetActionShortCut(aName, Result) then
-    Result := aShortCut;
-  if not IsShortCutAvailable(aShortCut, Act) then
+    Result := aShortCut
+  else
+    Logger.d('Action: %s; shortcut <%s> loaded from parameters.', [aName, ShortCutToText(Result)]);
+  if not IsShortCutAvailable(Result, Act) then
+  begin
+    Logger.D('Action: %s: shortcut <%s> already used by action %s', [aName, ShortCutToText(Result), Act.Name]);
     Result := 0;
+  end;
 end;
 
 function TVMActionManager.DoRegisterAction(aName, aCaption: string; aShortCut: TShortCut;
