@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                       CnPack For Delphi/C++Builder                           }
 {                     中国人自己的开放源码第三方开发包                         }
-{                   (C)Copyright 2001-2018 CnPack 开发组                       }
+{                   (C)Copyright 2001-2019 CnPack 开发组                       }
 {                   ------------------------------------                       }
 {                                                                              }
 {            本开发包是开源的自由软件，您可以遵照 CnPack 的发布协议来修        }
@@ -40,6 +40,20 @@
 //==============================================================================
 // 产生编译器版本信息
 //==============================================================================
+
+{$IFDEF VER330}
+  {$DEFINE COMPILER26}
+  {$IFDEF LINUX}
+    {$DEFINE UCL10}
+  {$ELSE}
+    {$DEFINE VCL71}
+  {$ENDIF}
+  {$DEFINE DELPHI26}
+  {$DEFINE DELPHI103_RIO}
+  {$DEFINE BCB26}
+  {$DEFINE BCB103_RIO}
+  {$DEFINE BDS20}
+{$ENDIF}
 
 {$IFDEF VER320}
   {$DEFINE COMPILER25}
@@ -360,6 +374,60 @@
 {$ENDIF}
 
 // DELPHIX_UP from DELPHIX mappings
+
+{$IFDEF DELPHI26}
+  {$DEFINE DELPHI}
+  {$DEFINE DELPHI26_UP}
+  {$DEFINE DELPHI25_UP}
+  {$DEFINE DELPHI24_UP}
+  {$DEFINE DELPHI23_UP}
+  {$DEFINE DELPHI22_UP}
+  {$DEFINE DELPHI21_UP}
+  {$DEFINE DELPHI20_UP}
+  {$DEFINE DELPHI19_UP}
+  {$DEFINE DELPHI18_UP}
+  {$DEFINE DELPHI17_UP}
+  {$DEFINE DELPHI16_UP}
+  {$DEFINE DELPHI15_UP}
+  {$DEFINE DELPHI14_UP}
+  {$DEFINE DELPHI12_UP}
+  {$DEFINE DELPHI11_UP}
+  {$DEFINE DELPHI10_UP}
+  {$DEFINE DELPHI9_UP}
+  {$DEFINE DELPHI8_UP}
+  {$DEFINE DELPHI7_UP}
+  {$DEFINE DELPHI6_UP}
+  {$DEFINE DELPHI5_UP}
+  {$DEFINE DELPHI4_UP}
+  {$DEFINE DELPHI3_UP}
+  {$DEFINE DELPHI2_UP}
+  {$DEFINE DELPHI1_UP}
+{$ENDIF}
+
+{$IFDEF DELPHI103_RIO}
+  {$DEFINE DELPHI103_RIO_UP}
+  {$DEFINE DELPHI102_TOKYO_UP}
+  {$DEFINE DELPHI101_BERLIN_UP}
+  {$DEFINE DELPHI10_SEATTLE_UP}
+  {$DEFINE DELPHIXE8_UP}
+  {$DEFINE DELPHIXE7_UP}
+  {$DEFINE DELPHIXE6_UP}
+  {$DEFINE DELPHIXE5_UP}
+  {$DEFINE DELPHIXE4_UP}
+  {$DEFINE DELPHIXE3_UP}
+  {$DEFINE DELPHIXE2_UP}
+  {$DEFINE DELPHIXE_UP}
+
+  // NO DELPHI2014 defined, so need define below here.
+  {$DEFINE DELPHI2013_UP}
+  {$DEFINE DELPHI2012_UP}
+  {$DEFINE DELPHI2011_UP}
+  {$DEFINE DELPHI2010_UP}
+  {$DEFINE DELPHI2009_UP}
+  {$DEFINE DELPHI2007_UP}
+  {$DEFINE DELPHI2006_UP}
+  {$DEFINE DELPHI2005_UP}
+{$ENDIF}
 
 {$IFDEF DELPHI25}
   {$DEFINE DELPHI}
@@ -998,6 +1066,56 @@
 
 // BCBX_UP from BCBX mappings
 
+{$IFDEF BCB26}
+  {$DEFINE BCB}
+  {$DEFINE BCB26_UP}
+  {$DEFINE BCB25_UP}
+  {$DEFINE BCB24_UP}
+  {$DEFINE BCB23_UP}
+  {$DEFINE BCB22_UP}
+  {$DEFINE BCB21_UP}
+  {$DEFINE BCB20_UP}
+  {$DEFINE BCB19_UP}
+  {$DEFINE BCB18_UP}
+  {$DEFINE BCB17_UP}
+  {$DEFINE BCB16_UP}
+  {$DEFINE BCB15_UP}
+  {$DEFINE BCB14_UP}
+  {$DEFINE BCB12_UP}
+  {$DEFINE BCB11_UP}
+  {$DEFINE BCB10_UP}
+  {$DEFINE BCB7_UP}
+  {$DEFINE BCB6_UP}
+  {$DEFINE BCB5_UP}
+  {$DEFINE BCB4_UP}
+  {$DEFINE BCB3_UP}
+  {$DEFINE BCB1_UP}
+{$ENDIF}
+
+{$IFDEF BCB103_RIO}
+  {$DEFINE BCB103_RIO_UP}
+  {$DEFINE BCB102_TOKYO_UP}
+  {$DEFINE BCB101_BERLIN_UP}
+  {$DEFINE BCB10_SEATTLE_UP}
+  {$DEFINE BCBXE8_UP}
+  {$DEFINE BCBXE7_UP}
+  {$DEFINE BCBXE6_UP}
+  {$DEFINE BCBXE5_UP}
+  {$DEFINE BCBXE4_UP}
+  {$DEFINE BCBXE3_UP}
+  {$DEFINE BCBXE2_UP}
+  {$DEFINE BCBXE_UP}
+
+  // NO BCB2014 defined, so need define below here.
+  {$DEFINE BCB2013_UP}
+  {$DEFINE BCB2012_UP}
+  {$DEFINE BCB2011_UP}
+  {$DEFINE BCB2010_UP}
+  {$DEFINE BCB2009_UP}
+  {$DEFINE BCB2007_UP}
+  {$DEFINE BCB2006_UP}
+{$ENDIF}
+
 {$IFDEF BCB25}
   {$DEFINE BCB}
   {$DEFINE BCB25_UP}
@@ -1556,6 +1674,39 @@
 
 // BDSXX_UP from BDSXX mappings
 
+{$IFDEF BDS20}      // 10.3 RIO
+  {$DEFINE BDS}
+  {$DEFINE BDS20_UP}
+  {$DEFINE BDS19_UP}
+  {$DEFINE BDS18_UP}
+  {$DEFINE BDS17_UP}
+  {$DEFINE BDS16_UP}
+  {$DEFINE BDS15_UP}
+  {$DEFINE BDS14_UP}
+  {$DEFINE BDS12_UP}
+  {$DEFINE BDS11_UP}
+  {$DEFINE BDS10_UP}
+  {$DEFINE BDS9_UP}
+  {$DEFINE BDS8_UP}
+  {$DEFINE BDS7_UP}
+  {$DEFINE BDS6_UP}
+  {$DEFINE BDS5_UP}
+  {$DEFINE BDS4_UP}
+  {$DEFINE BDS3_UP}
+  {$DEFINE BDS2_UP}
+  {$DEFINE BDS1_UP}
+
+  // NO BDS2014 defined, so need define below here.
+  {$DEFINE BDS2013_UP}
+  {$DEFINE BDS2012_UP}
+  {$DEFINE BDS2011_UP}
+  {$DEFINE BDS2010_UP}
+  {$DEFINE BDS2009_UP}
+  {$DEFINE BDS2007_UP}
+  {$DEFINE BDS2006_UP}
+  {$DEFINE BDS2005_UP}
+{$ENDIF}
+
 {$IFDEF BDS19}      // 10.2 Tokyo
   {$DEFINE BDS}
   {$DEFINE BDS19_UP}
@@ -1940,6 +2091,35 @@
 {$ENDIF}
 
 // COMPILERX_UP from COMPILERX mappings
+
+{$IFDEF COMPILER26}      // 10.3 RIO
+  {$DEFINE COMPILER26_UP}
+  {$DEFINE COMPILER25_UP}
+  {$DEFINE COMPILER24_UP}
+  {$DEFINE COMPILER23_UP}
+  {$DEFINE COMPILER22_UP}
+  {$DEFINE COMPILER21_UP}
+  {$DEFINE COMPILER20_UP}
+  {$DEFINE COMPILER19_UP}
+  {$DEFINE COMPILER18_UP}
+  {$DEFINE COMPILER17_UP}
+  {$DEFINE COMPILER16_UP}
+  {$DEFINE COMPILER15_UP}
+  {$DEFINE COMPILER14_UP}
+  {$DEFINE COMPILER12_UP}
+  {$DEFINE COMPILER11_UP}
+  {$DEFINE COMPILER10_UP}
+  {$DEFINE COMPILER9_UP}
+  {$DEFINE COMPILER8_UP}
+  {$DEFINE COMPILER7_UP}
+  {$DEFINE COMPILER6_UP}
+  {$DEFINE COMPILER5_UP}
+  {$DEFINE COMPILER4_UP}
+  {$DEFINE COMPILER35_UP}
+  {$DEFINE COMPILER3_UP}
+  {$DEFINE COMPILER2_UP}
+  {$DEFINE COMPILER1_UP}
+{$ENDIF}
 
 {$IFDEF COMPILER25}      // 10.2 Tokyo
   {$DEFINE COMPILER25_UP}
@@ -2482,7 +2662,7 @@
   {$DEFINE SUPPORT_INLINE}
   {$DEFINE SUPPORT_UINT64}
   {$DEFINE IDE_WIDECONTROL}
-  {$DEFINE IDE_EDITOR_SUPPORT_FOLDING} // 2005 以上的编辑器支持区域折叠
+  {$DEFINE IDE_EDITOR_SUPPORT_FOLDING}  // 2005 以上的编辑器支持区域折叠
   {$DEFINE OTA_NEW_BREAKPOINT_NOBUG}    // 2005 以上的 NewBreakpoint 才能工作
   {$DEFINE IDE_ACTION_UPDATE_DELAY}     // IDE's Action Menu Update will Delay in 2005 or Up.
   {$DEFINE SUPPORT_WIDECHAR_IDENTIFIER}
@@ -2493,8 +2673,20 @@
   {$ENDIF}
 {$ENDIF}
 
+{$IFDEF DELPHI102_TOKYO_UP}
+  {$DEFINE IDE_SUPPORT_THEMING}         // Tokyo 10.2.2 或以上支持 IDE 主题切换
+{$ENDIF}
+
+{$IFDEF DELPHIXE4_UP}
+  {$IFNDEF DISABLE_FMX}
+    {$DEFINE SUPPORT_FMX_FRAME}         // XE4 FMX Supports FMX Frame
+  {$ENDIF}
+{$ENDIF}
+
 {$IFDEF DELPHIXE2_UP}
   {$DEFINE SUPPORT_UNITNAME_DOT}
+  {$DEFINE SUPPORT_ENHANCED_INDEXEDPROPERTY}   // XE2 New RTTI Supports IndexedProperty
+  {$DEFINE SUPPORT_ZLIB_WINDOWBITS}            // XE2 ZLib Supports WindowBits
 {$ENDIF}
 
 {$IFDEF DELPHIXE_UP}
@@ -2517,6 +2709,7 @@
   {$DEFINE SUPPORT_INTERFACE_AS_OBJECT}
   {$DEFINE SUPPORT_ENHANCED_RTTI}          // New enhanced RTTI.
   {$DEFINE IDE_HAS_NEW_COMPONENT_PALETTE}  // IDE has a new style Component Palette.
+  {$DEFINE IDE_HAS_EDITOR_SEARCHPANEL}     // Editor has a Search Panel
 {$ENDIF}
 
 {$IFDEF BDS2009_UP}
@@ -2527,6 +2720,10 @@
   {$DEFINE SUPPORT_GENERIC}      // 支持泛型
   {$DEFINE IDE_MAINFORM_EAT_MOUSEWHEEL}
   // MainForm of 2009 or Above will eat Message in MouseWheelHandler
+  {$DEFINE IDE_CODEINSIGHT_AUTOINVOKE}
+  // IDE Code Insight has Auto Invoke Option
+  {$DEFINE EDITVIEW_CONVERTPOS_BUG}
+  // 2009 or Above IEditView.ConvertPos Incorrect when Meeting Unicode Chars.
 
   {$IFNDEF DELPHIXE2_UP}  // 2009/2010/XE has a Project Version Number Bug.
     {$DEFINE PROJECT_VERSION_NUMBER_BUG}
@@ -2543,6 +2740,7 @@
 
 {$IFDEF BDS2007_UP}
   {$DEFINE IDE_CONF_MANAGER}
+  {$DEFINE TBYTES_DEFINED} // 2007 Defined TBytes = array of Byte;
 {$ENDIF}
 
 {$IFDEF BDS2007}
@@ -2551,6 +2749,8 @@
 {$ENDIF}
 
 {$IFDEF BDS2006_UP}
+  {$DEFINE TCONTROL_HAS_MARGINS}         // 2006 and above TControl has Margins
+  {$DEFINE TCONTROL_HAS_EXPLICIT_BOUNDS} // 2006 and above TControl has Explicit Bounds
   {$DEFINE IDE_HAS_GUIDE_LINE}    // 2006 and above has Designer Guide Line
   {$DEFINE IDE_SYNC_EDIT_BLOCK}   // 2006 and above Editor Supports Sync Block Edit
   {$DEFINE OTA_CODE_TEMPLATE_API} // 2006 and above Provides CodeTemplateAPI.
@@ -2567,10 +2767,11 @@
 {$ENDIF}
 
 {$IFDEF DELPHIXE8_UP}
-  {$DEFINE IDE_INTEGRATE_CASTALIA} // XE8 and 10S integrate Castalia.
+  {$DEFINE IDE_INTEGRATE_CASTALIA} // XE8/10S and above integrate Castalia.
 {$ENDIF}
 
 {$IFDEF DELPHI10_SEATTLE_UP}
+  {$DEFINE IDE_HAS_OWN_STRUCTUAL_HIGHLIGHT}  // 10S has own Structual Highlight
   {$DEFINE IDE_HAS_HIDE_NONVISUAL} // 10S has "Hide Nonvisual" Feature.
 {$ENDIF}
 
@@ -2597,9 +2798,8 @@
 //==============================================================================
 // 针对 PascalScript 的调试设置
 //==============================================================================
-{$IFNDEF RELEASE}
-  {$DEFINE ALLDEBUG}
-{$ENDIF}
+
+{$DEFINE ALLDEBUG}
 
 //==============================================================================
 // 开发包语种定义

@@ -1,0 +1,1 @@
+pynt -f ../build.py delphi10 && "C:\Program Files (x86)\Embarcadero\Studio\20.0\bin\rsvars.bat" && msbuild vmtools.dproj /t:Build /p:config="Release"

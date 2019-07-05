@@ -3,6 +3,9 @@ library vmtools;
 {$I cond_define.inc}
 {$E DLL}
 
+{$IFDEF DELPHIX_RIO}
+  {$LIBSUFFIX '_10.3'}
+{$ENDIF}
 {$IFDEF DELPHIX_TOKYO}
   {$LIBSUFFIX '_10.2'}
 {$ENDIF}

@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                       CnPack For Delphi/C++Builder                           }
 {                     中国人自己的开放源码第三方开发包                         }
-{                   (C)Copyright 2001-2018 CnPack 开发组                       }
+{                   (C)Copyright 2001-2019 CnPack 开发组                       }
 {                   ------------------------------------                       }
 {                                                                              }
 {            本开发包是开源的自由软件，您可以遵照 CnPack 的发布协议来修        }
@@ -28,7 +28,6 @@ unit CnPropSheetFrm;
 * 开发平台：PWinXP + Delphi 5
 * 兼容测试：未测试
 * 本 地 化：该窗体中的字符串暂不符合本地化处理方式
-* 单元标识：$Id$
 * 修改记录：2016.04.10
 *               加入修改属性的功能
 *           2012.03.10
@@ -47,14 +46,14 @@ interface
 uses
   Windows, Messages, SysUtils, Classes, Graphics, Controls, Forms, Dialogs, Menus,
   Grids, StdCtrls, ExtCtrls, TypInfo, Contnrs, Buttons, ComCtrls, Tabs, Commctrl,
-  Clipbrd {$IFDEF VER130}{$ELSE}, Variants{$ENDIF}
+  Clipbrd, CnTree {$IFDEF VER130}{$ELSE}, Variants{$ENDIF}
   {$IFDEF SUPPORT_ENHANCED_RTTI}, Rtti {$ENDIF};
 
 const
   CN_INSPECTOBJECT = WM_USER + $C10; // Cn Inspect Object
 
 type
-  TCnPropContentType = (pctProps, pctEvents, pctMethods, pctCollectionItems, pctMenuItems,
+  TCnPropContentType = (pctProps, pctFields, pctEvents, pctMethods, pctCollectionItems, pctMenuItems,
     pctStrings, pctGraphics, pctComponents, pctControls, pctHierarchy);
   TCnPropContentTypes = set of TCnPropContentType;
 
@@ -68,12 +67,14 @@ type
     FObjClassName: string;
     FIsNewRTTI: Boolean;
     FIntfValue: IUnknown;
+    FIsObjOrIntf: Boolean;
   public
     property Changed: Boolean read FChanged write FChanged;
     property DisplayValue: string read FDisplayValue write FDisplayValue;
     property ObjClassName: string read FObjClassName write FObjClassName;
     property ObjValue: TObject read FObjValue write FObjValue;
     property IntfValue: IUnknown read FIntfValue write FIntfValue;
+    property IsObjOrIntf: Boolean read FIsObjOrIntf write FIsObjOrIntf;
     property ObjStr: string read FObjStr write FObjStr;
     property IsNewRTTI: Boolean read FIsNewRTTI write FIsNewRTTI;
   end;
@@ -81,21 +82,27 @@ type
   TCnPropertyObject = class(TCnDisplayObject)
   {* 描述一属性 }
   private
-    FIsObjOrIntf: Boolean;
     FPropName: string;
     FPropType: TTypeKind;
     FPropValue: Variant;
 {$IFDEF SUPPORT_ENHANCED_RTTI}
     FPropRttiValue: TValue;
+  {$IFDEF SUPPORT_ENHANCED_INDEXEDPROPERTY}
+    FIndexParamCount: Integer;
+  {$ENDIF}
 {$ENDIF}
     FCanModify: Boolean;
   public
     property PropName: string read FPropName write FPropName;
     property PropType: TTypeKind read FPropType write FPropType;
-    property IsObjOrIntf: Boolean read FIsObjOrIntf write FIsObjOrIntf;
     property PropValue: Variant read FPropValue write FPropValue;
 {$IFDEF SUPPORT_ENHANCED_RTTI}
     property PropRttiValue: TValue read FPropRttiValue write FPropRttiValue;
+
+  {$IFDEF SUPPORT_ENHANCED_INDEXEDPROPERTY}
+    // Indexed Property Support
+    property IndexParamCount: Integer read FIndexParamCount write FIndexParamCount;
+  {$ENDIF}
 {$ENDIF}
     property CanModify: Boolean read FCanModify write FCanModify;
   end;
@@ -121,6 +128,33 @@ type
     property MethodSimpleName: string read FMethodSimpleName write FMethodSimpleName;
     property FullName: string read FFullName write FFullName;
   end;
+
+{$IFDEF SUPPORT_ENHANCED_RTTI}
+
+  TCnFieldObject = class(TCnDisplayObject)
+  {* 描述一 Field，只在增强 RTTI 中有用}
+  private
+    FOffset: Integer;
+    FFieldName: string;
+    FFieldType: TRttiType;
+    FCanModify: Boolean;
+    FFieldValue: TValue;
+  public
+    constructor Create;
+    {* 构造函数}
+    property FieldName: string read FFieldName write FFieldName;
+    {* Field 的名字}
+    property FieldType: TRttiType read FFieldType write FFieldType;
+    {* Field 的类型}
+    property FieldValue: TValue read FFieldValue write FFieldValue;
+    {* Field 的值}
+    property Offset: Integer read FOffset write FOffset;
+    {* Field 的偏移量}
+    property CanModify: Boolean read FCanModify write FCanModify;
+    {* 该 Field 能否修改，一般都为 True}
+  end;
+
+{$ENDIF}
 
   TCnStringsObject = class(TCnDisplayObject)
   {* 描述一 TStrings}
@@ -187,6 +221,7 @@ type
   private
     FObjectAddr: Pointer;
     FProperties: TObjectList;
+    FFields: TObjectList;
     FEvents: TObjectList;
     FMethods: TObjectList;
     FInspectComplete: Boolean;
@@ -215,6 +250,7 @@ type
     procedure SetInspectComplete(const Value: Boolean);
     function GetMenuItemCount: Integer;
     function GetMethodCount: Integer;
+    function GetFieldCount: Integer;
   protected
     procedure SetObjectAddr(const Value: Pointer); virtual;
     procedure DoEvaluate; virtual; abstract;
@@ -231,6 +267,10 @@ type
       const AEventName: string): TCnEventObject;
     function IndexOfMethod(AMethods: TObjectList;
       const AMethodName: string): TCnMethodObject;
+{$IFDEF SUPPORT_ENHANCED_RTTI}
+    function IndexOfField(AFields: TObjectList;
+      const AFieldName: string): TCnFieldObject;
+{$ENDIF}
   public
     constructor Create(Data: Pointer); virtual;
     destructor Destroy; override;
@@ -243,6 +283,7 @@ type
     {* 主要供外部写，写入 Object，或 String }
 
     property Properties: TObjectList read FProperties;
+    property Fields: TObjectList read FFields;
     property Events: TObjectList read FEvents;
     property Methods: TObjectList read FMethods;
     property Strings: TCnStringsObject read FStrings;
@@ -253,6 +294,7 @@ type
     property MenuItems: TObjectList read FMenuItems;
 
     property PropCount: Integer read GetPropCount;
+    property FieldCount: Integer read GetFieldCount;
     property EventCount: Integer read GetEventCount;
     property MethodCount: Integer read GetMethodCount;
     property CompCount: Integer read GetCompCount;
@@ -300,6 +342,9 @@ type
 
   TCnPropSheetForm = class(TForm)
     pnlTop: TPanel;
+    pnlTree: TPanel;
+    tsTree: TTabSet;
+    TreeView: TTreeView;
     tsSwitch: TTabSet;
     pnlMain: TPanel;
     lvProp: TListView;
@@ -321,11 +366,13 @@ type
     edtClassName: TEdit;
     btnLocate: TSpeedButton;
     lvMethods: TListView;
+    lvFields: TListView;
     pnlGraphicInfo: TPanel;
     bxGraphic: TScrollBox;
     imgGraphic: TImage;
     lblGraphicInfo: TLabel;
     lblPixel: TLabel;
+    btnTree: TSpeedButton;
     procedure FormCreate(Sender: TObject);
     procedure FormResize(Sender: TObject);
     procedure FormDestroy(Sender: TObject);
@@ -352,6 +399,10 @@ type
     procedure btnLocateClick(Sender: TObject);
     procedure imgGraphicMouseMove(Sender: TObject; Shift: TShiftState; X,
       Y: Integer);
+    procedure btnTreeClick(Sender: TObject);
+    procedure tsTreeChange(Sender: TObject; NewTab: Integer;
+      var AllowChange: Boolean);
+    procedure TreeViewDblClick(Sender: TObject);
   private
     FListViewHeaderHeight: Integer;
     FContentTypes: TCnPropContentTypes;
@@ -368,6 +419,10 @@ type
     FGraphicObject: TObject;
     FHierPanels: TComponentList;
     FHierLines: TComponentList;
+
+    FComponentTree: TCnTree;
+    FControlTree: TCnTree;
+
     FOnEvaluateBegin: TNotifyEvent;
     FOnEvaluateEnd: TNotifyEvent;
     FOnAfterEvaluateHierarchy: TNotifyEvent;
@@ -375,14 +430,22 @@ type
     FOnAfterEvaluateControls: TNotifyEvent;
     FOnAfterEvaluateProperties: TNotifyEvent;
     FOnAfterEvaluateComponents: TNotifyEvent;
+    FShowTree: Boolean;
+    FSyncMode: Boolean;
 
     procedure SetContentTypes(const Value: TCnPropContentTypes);
     procedure SetParentSheetForm(const Value: TCnPropSheetForm);
+    procedure SetShowTree(const Value: Boolean);
 
     procedure UpdateContentTypes;
     procedure UpdateUIStrings;
     procedure UpdateHierarchys;
     procedure UpdatePanelPositions;
+
+    // 根据 FObjectPointer 查其组件树与控件树
+    procedure SearchTrees;
+    procedure UpdateToTree(IsControl: Boolean);
+    procedure SaveATreeNode(ALeaf: TCnLeaf; ATreeNode: TTreeNode; var Valid: Boolean);
 
     procedure MsgInspectObject(var Msg: TMessage); message CN_INSPECTOBJECT;
     procedure DoEvaluateBegin; virtual;
@@ -403,6 +466,8 @@ type
     property ObjectPointer: Pointer read FObjectPointer write FObjectPointer;
     property ContentTypes: TCnPropContentTypes read FContentTypes write SetContentTypes;
     property ParentSheetForm: TCnPropSheetForm read FParentSheetForm write SetParentSheetForm;
+    property ShowTree: Boolean read FShowTree write SetShowTree;
+    property SyncMode: Boolean read FSyncMode write FSyncMode;
 
     property OnEvaluateBegin: TNotifyEvent read FOnEvaluateBegin write FOnEvaluateBegin;
     property OnEvaluateEnd: TNotifyEvent read FOnEvaluateEnd write FOnEvaluateEnd;
@@ -449,6 +514,7 @@ type
     TypeName: ShortString;
   end;
 
+  TConrolAccess = class(TControl);
   TGraphicConrolAccess = class(TGraphicControl);
 
   TCnByteSet = set of 0..SizeOf(Byte) * 8 - 1;
@@ -493,8 +559,8 @@ type
 
 const
   SCnPropContentType: array[TCnPropContentType] of string =
-    ('Properties', 'Events', 'Methods', 'CollectionItems', 'MenuItems', 'Strings', 'Graphics',
-     'Components', 'Controls', 'Hierarchy');
+    ('Properties', 'Fields', 'Events', 'Methods', 'CollectionItems', 'MenuItems',
+     'Strings', 'Graphics', 'Components', 'Controls', 'Hierarchy');
 
   SCnInputNewValueCaption = 'Modify Value';
   SCnInputNewValuePrompt = 'Enter a New Value for %s:';
@@ -510,6 +576,7 @@ var
   CnFormLeft: Integer = 50;
   CnFormTop: Integer = 50;
   Closing: Boolean = False;
+  CnPnlTreeWidth: Integer = 250;
 
 // 根据 set 值与 set 的类型获得 set 的字符串，TypInfo 参数必须是枚举的类型，
 // 而不能是 set of 后的类型，如无 TypInfo，则返回数值
@@ -518,10 +585,13 @@ var
   I: Integer;
   S: TIntegerSet;
 begin
-  Result := '';
   if Value = 0 then
+  begin
+    Result := '[]';
     Exit;
+  end;
 
+  Result := '';
   Integer(S) := Value;
   for I := 0 to SizeOf(Integer) * 8 - 1 do
   begin
@@ -565,6 +635,7 @@ begin
   AForm.ObjectPointer := Address;
   AForm.Clear;
   AForm.ParentSheetForm := AParentSheet;
+  AForm.SyncMode := SyncMode;
 
   if SyncMode then
   begin
@@ -599,7 +670,11 @@ begin
    except
      S := 'Unknown Object';
    end;
-   Result := Format('(%s.$%8.8x)', [S, Integer(AClass)])
+{$IFDEF WIN64}
+   Result := Format('(%s.$%16.16x)', [S, NativeInt(AClass)]);
+{$ELSE}
+   Result := Format('(%s.$%8.8x)', [S, Integer(AClass)]);
+{$ENDIF}
  end
  else
    Result := 'nil';
@@ -616,7 +691,12 @@ begin
     except
       S := 'Unknown Object';
     end;
-    Result := Format('(%s.$%8.8x)', [S, Integer(AObj)])
+
+{$IFDEF WIN64}
+    Result := Format('(%s.$%16.16x)', [S, NativeInt(AObj)]);
+{$ELSE}
+    Result := Format('(%s.$%8.8x)', [S, Integer(AObj)]);
+{$ENDIF}
   end
   else
     Result := 'nil';
@@ -677,15 +757,16 @@ begin
     TypeStr := Pointer(Integer(@P^.ParamName) + Length(P^.ParamName) + 1);
     if Pos('array of', GetParamFlagsName(P^.Flags)) > 0 then
       Result := Result + Trim(Format('%s: %s %s;', [(P^.ParamName),
-        (GetParamFlagsName(P^.Flags)), TypeStr^]))
+        (GetParamFlagsName(P^.Flags)), TypeStr^])) + ' '
     else
-      Result := Result + trim(Format('%s %s: %s;', [(GetParamFlagsName(P^.Flags)),
-        (P^.ParamName), TypeStr^]));
+      Result := Result + Trim(Format('%s %s: %s; ', [(GetParamFlagsName(P^.Flags)),
+        (P^.ParamName), TypeStr^])) + ' ';
     P := PParamData(Integer(P) + SizeOf(TParamFlags) +
       Length(P^.ParamName) + Length(TypeStr^) + 2);
   end;
 
-  Delete(Result, Length(Result), 1);
+  if T^.ParamCount > 0 then
+    Delete(Result, Length(Result) - 1, 2);
   Result := Result + ')';
   if T^.MethodKind = mkFunction then
     Result := Result + ': ' + string(PShortString(P)^);
@@ -741,16 +822,81 @@ begin
   begin
     TypeStr := Pointer(Integer(@P^.ParamName) + Length(P^.ParamName) + 1);
     if Pos('array of', GetParamFlagsName(P^.Flags)) > 0 then
-      Result := Result + Trim(Format('%s: %s %s;', [(P^.ParamName),
-        (GetParamFlagsName(P^.Flags)), TypeStr^]))
+      Result := Result + Trim(Format('%s: %s %s; ', [(P^.ParamName),
+        (GetParamFlagsName(P^.Flags)), TypeStr^])) + ' '
     else
-      Result := Result + trim(Format('%s %s: %s;', [(GetParamFlagsName(P^.Flags)),
-        (P^.ParamName), TypeStr^]));
+      Result := Result + Trim(Format('%s %s: %s; ', [(GetParamFlagsName(P^.Flags)),
+        (P^.ParamName), TypeStr^])) + ' ';
     P := PParamData(Integer(P) + SizeOf(TParamFlags) +
       Length(P^.ParamName) + Length(TypeStr^) + 2);
   end;
 
-  Delete(Result, Length(Result), 1);
+  if T^.ParamCount > 0 then
+    Delete(Result, Length(Result) - 1, 2);
+  Result := Result + ')';
+  if T^.MethodKind = mkFunction then
+    Result := Result + ': ' + string(PShortString(P)^);
+  Result := Result + ';';
+end;
+
+// 根据 Field 函数类型信息获得其声明，2010以上版本使用
+function GetRttiFieldMethodDeclare(Instance: TObject; RttiField: TRttiField): string;
+var
+  CompName, MthName, S: string;
+  TypeStr: PShortString;
+  T: PTypeData;
+  P: PParamData;
+  I, DataSize: Integer;
+  AMethod: TMethod;
+begin
+  Result := '';
+  DataSize := RttiField.GetValue(Instance).DataSize;
+  if DataSize <> SizeOf(TMethod) then
+    Exit;
+
+  RttiField.GetValue(Instance).ExtractRawData(@AMethod);
+
+  CompName := '*';
+  if Instance is TComponent then
+    CompName := (Instance as TComponent).Name;
+  MthName := RttiField.Name;
+
+  if AMethod.Data <> nil then
+  begin
+    try
+      S := TObject(AMethod.Data).MethodName(AMethod.Code);
+      if S <> '' then
+        MthName := S;
+      if TObject(AMethod.Data) is TComponent then
+        CompName := (TObject(AMethod.Data) as TComponent).Name;
+    except
+      ;
+    end;
+  end;
+
+  T := GetTypeData(RttiField.FieldType.Handle);
+
+  if T^.MethodKind = mkFunction then
+    Result := Result + 'function ' + CompName + '.' + MthName + '('
+  else
+    Result := Result + 'procedure ' + CompName + '.' + MthName + '(';
+
+  P := PParamData(@T^.ParamList);
+  for I := 1 to T^.ParamCount do
+  begin
+    TypeStr := Pointer(Integer(@P^.ParamName) + Length(P^.ParamName) + 1);
+    if Pos('array of', GetParamFlagsName(P^.Flags)) > 0 then
+      Result := Result + Trim(Format('%s: %s %s;', [(P^.ParamName),
+        (GetParamFlagsName(P^.Flags)), TypeStr^])) + ' '
+    else
+      Result := Result + Trim(Format('%s %s: %s;', [(GetParamFlagsName(P^.Flags)),
+        (P^.ParamName), TypeStr^])) + ' ';
+    P := PParamData(Integer(P) + SizeOf(TParamFlags) +
+      Length(P^.ParamName) + Length(TypeStr^) + 2);
+  end;
+
+  if T^.ParamCount > 0 then
+    Delete(Result, Length(Result) - 1 , 2);
   Result := Result + ')';
   if T^.MethodKind = mkFunction then
     Result := Result + ': ' + string(PShortString(P)^);
@@ -764,6 +910,7 @@ var
   iTmp: Integer;
   S: string;
   IntToId: TIntToIdent;
+  AMethod: TMethod;
 {$IFDEF COMPILER6_UP}
   Intf: IInterface;
 {$ENDIF}
@@ -794,7 +941,7 @@ begin
       S := GetEnumProp(Instance, PropInfo);
     tkSet:
       begin
-        S := GetSetProp(Instance, PropInfo);
+        S := GetSetProp(Instance, PropInfo, True);
         if S = '' then
           S := '[]';
       end;
@@ -802,12 +949,19 @@ begin
       S := FloatToStr(GetFloatProp(Instance, PropInfo));
     tkMethod:
       begin
-        iTmp := GetOrdProp(Instance, PropInfo);
-        if iTmp <> 0 then
+        AMethod := GetMethodProp(Instance, PropInfo);
+        if (AMethod.Code <> nil) and (AMethod.Data <> nil) then
+        begin
+{$IFDEF WIN64}
+          S := Format('%s: ($%16.16x, $%16.16x): %s', [PropInfo^.PropType^^.Name,
+            NativeInt(AMethod.Code), NativeInt(AMethod.Data),
+            GetMethodDeclare(Instance, PropInfo)]);
+{$ELSE}
           S := Format('%s: ($%8.8x, $%8.8x): %s', [PropInfo^.PropType^^.Name,
-            Integer(GetMethodProp(Instance, PropInfo).Code),
-            Integer(GetMethodProp(Instance, PropInfo).Data),
-            GetMethodDeclare(Instance, PropInfo)])
+            Integer(AMethod.Code), Integer(AMethod.Data),
+            GetMethodDeclare(Instance, PropInfo)]);
+{$ENDIF}
+        end
         else
           S := 'nil';
       end;
@@ -821,7 +975,11 @@ begin
       begin
 {$IFDEF COMPILER6_UP}
         Intf := GetInterfaceProp(Instance, PropInfo);
+        {$IFDEF WIN64}
+        S := Format('(Interface:$%16.16x)', [NativeInt(Intf)]);
+        {$ELSE}
         S := Format('(Interface:$%8.8x)', [Integer(Intf)]);
+        {$ENDIF}
 {$ELSE}
         S := '(Interface:<...>)';
 {$ENDIF}
@@ -843,36 +1001,6 @@ var
   Intf: IInterface;
   AMethod: TMethod;
   AClass: TClass;
-
-  function GetSetStr(TypInfo: PTypeInfo; Value: Integer): string;
-  var
-    I: Integer;
-    S: TIntegerSet;
-  begin
-    if Value = 0 then
-    begin
-      Result := '[]';
-      Exit;
-    end;
-
-    Result := '';
-    Integer(S) := Value;
-    for I := 0 to SizeOf(Integer) * 8 - 1 do
-    begin
-      if I in S then
-      begin
-        if Result <> '' then
-          Result := Result + ',';
-
-        if TypInfo = nil then
-          Result := Result + IntToStr(I)
-        else
-          Result := Result + GetEnumName(TypInfo, I);
-      end;
-    end;
-    Result := '[' + Result + ']';
-  end;
-
 begin
   Result := '';
   case RttiProperty.PropertyType.TypeKind of
@@ -937,9 +1065,15 @@ begin
             S := 'nil'
           else
           begin
-            S := Format('%s: ($%8.8x, $%8.8x: %s)', [RttiProperty.PropertyType.Name,
+{$IFDEF WIN64}
+            S := Format('%s: ($%16.16x, $%16.16x): %s', [RttiProperty.PropertyType.Name,
+              NativeInt(AMethod.Code), NativeInt(AMethod.Data),
+              GetRttiMethodDeclare(Instance, RttiProperty)]);
+{$ELSE}
+            S := Format('%s: ($%8.8x, $%8.8x): %s', [RttiProperty.PropertyType.Name,
               Integer(AMethod.Code), Integer(AMethod.Data),
               GetRttiMethodDeclare(Instance, RttiProperty)]);
+{$ENDIF}
           end;
         end;
       end;
@@ -953,7 +1087,11 @@ begin
       begin
         try
           Intf := RttiProperty.GetValue(Instance).AsInterface;
+          {$IFDEF WIN64}
+          S := Format('(Interface:$%16.16x)', [NativeInt(Intf)]);
+          {$ELSE}
           S := Format('(Interface:$%8.8x)', [Integer(Intf)]);
+          {$ENDIF}
         except
           on E: Exception do
             S := Format('(Interface:<Exception: %s>)', [E.Message]);
@@ -965,7 +1103,135 @@ begin
         if DataSize = SizeOf(Pointer) then
         begin
           RttiProperty.GetValue(Instance).ExtractRawData(@APtr);
+{$IFDEF WIN64}
+          S := Format('(Pointer:$%16.16x)', [NativeInt(APtr)]);
+{$ELSE}
           S := Format('(Pointer:$%8.8x)', [Integer(APtr)]);
+{$ENDIF}
+        end;
+      end;
+  end;
+  Result := S;
+end;
+
+function GetRttiFieldValueStr(Instance: TObject; RttiField: TRttiField): string;
+var
+  S: string;
+  IntToId: TIntToIdent;
+  PropTypeInfo, SetElementTypeInfo: PTypeInfo;
+  DataSize: Integer;
+  Buf: array[0..1] of Integer; // for x64?
+  APtr: Pointer;
+  Intf: IInterface;
+  AMethod: TMethod;
+  AClass: TClass;
+begin
+  Result := '';
+  case RttiField.FieldType.TypeKind of
+    tkInteger:
+      begin
+        S := IntToStr(RttiField.GetValue(Instance).AsInteger);
+        PropTypeInfo := RttiField.FieldType.Handle;
+        IntToId := FindIntToIdent(PropTypeInfo);
+        if Assigned(IntToId) and IntToId(RttiField.GetValue(Instance).AsInteger, S) then
+        else
+        begin
+          if RttiField.FieldType.Name = 'TColor' then
+            S := Format('$%8.8x', [RttiField.GetValue(Instance).AsInteger])
+          else
+            S := IntToStr(RttiField.GetValue(Instance).AsInteger);
+        end;
+      end;
+    tkChar, tkWChar:
+      S := RttiField.GetValue(Instance).AsString;
+    tkClass:
+      begin
+        // 一类属性是 Class，可能根据类名获取运行期实例？published 里头适用？
+        // 一类属性是 Object，public 里头适用？
+        if RttiField.GetValue(Instance).IsClass then
+        begin
+          AClass := RttiField.GetValue(Instance).AsClass;
+          S := GetClassValueStr(AClass);
+        end
+        else if RttiField.GetValue(Instance).IsObject then
+        begin
+          S := GetObjValueStr(RttiField.GetValue(Instance).AsObject);
+        end;
+      end;
+    tkEnumeration:
+      begin
+        PropTypeInfo := RttiField.FieldType.Handle;
+        S := GetEnumName(PropTypeInfo, RttiField.GetValue(Instance).AsOrdinal);
+      end;
+    tkSet:
+      begin
+        SetElementTypeInfo := nil;
+        if RttiField.FieldType.IsSet then
+          SetElementTypeInfo := RttiField.FieldType.AsSet.ElementType.Handle;
+
+        DataSize := RttiField.GetValue(Instance).DataSize;
+        if (DataSize <= SizeOf(Integer)) and (SetElementTypeInfo <> nil) then
+        begin
+          FillChar(Buf[0], SizeOf(Buf), 0);
+          RttiField.GetValue(Instance).ExtractRawData((@Buf[0]));
+          S := GetSetStr(SetElementTypeInfo, Buf[0]);
+        end;
+      end;
+    tkFloat:
+      S := FloatToStr(RttiField.GetValue(Instance).AsExtended);
+    tkMethod:
+      begin
+        DataSize := RttiField.GetValue(Instance).DataSize;
+        if DataSize = SizeOf(TMethod) then
+        begin
+          RttiField.GetValue(Instance).ExtractRawData(@AMethod);
+          if AMethod.Code = nil then
+            S := 'nil'
+          else
+          begin
+{$IFDEF WIN64}
+            S := Format('%s: ($%16.16x, $%16.16x: %s)', [RttiField.FieldType.Name,
+              NativeInt(AMethod.Code), NativeInt(AMethod.Data),
+              GetRttiFieldMethodDeclare(Instance, RttiField)]);
+{$ELSE}
+            S := Format('%s: ($%8.8x, $%8.8x: %s)', [RttiField.FieldType.Name,
+              Integer(AMethod.Code), Integer(AMethod.Data),
+              GetRttiFieldMethodDeclare(Instance, RttiField)]);
+{$ENDIF}
+          end;
+        end;
+      end;
+    tkString, tkLString, tkWString{$IFDEF UNICODE_STRING}, tkUString{$ENDIF}:
+      S := RttiField.GetValue(Instance).AsString;
+    tkVariant:
+      S := VarToStr(RttiField.GetValue(Instance).AsVariant);
+    tkInt64:
+      S := FloatToStr(RttiField.GetValue(Instance).AsInt64 + 0.0);
+    tkInterface:
+      begin
+        try
+          Intf := RttiField.GetValue(Instance).AsInterface;
+          {$IFDEF WIN64}
+          S := Format('(Interface:$%16.16x)', [NativeInt(Intf)]);
+          {$ELSE}
+          S := Format('(Interface:$%8.8x)', [Integer(Intf)]);
+          {$ENDIF}
+        except
+          on E: Exception do
+            S := Format('(Interface:<Exception: %s>)', [E.Message]);
+        end;
+      end;
+    tkPointer:
+      begin
+        DataSize := RttiField.GetValue(Instance).DataSize;
+        if DataSize = SizeOf(Pointer) then
+        begin
+          RttiField.GetValue(Instance).ExtractRawData(@APtr);
+{$IFDEF WIN64}
+          S := Format('(Pointer:$%16.16x)', [NativeInt(APtr)]);
+{$ELSE}
+          S := Format('(Pointer:$%8.8x)', [Integer(APtr)]);
+{$ENDIF}
         end;
       end;
   end;
@@ -996,6 +1262,7 @@ constructor TCnObjectInspector.Create(Data: Pointer);
 begin
   inherited Create;
   FProperties := TObjectList.Create(True);
+  FFields := TObjectList.Create(True);
   FEvents := TObjectList.Create(True);
   FMethods := TObjectList.Create(True);
   FStrings := TCnStringsObject.Create;
@@ -1016,6 +1283,7 @@ begin
   FStrings.Free;
   FMethods.Free;
   FEvents.Free;
+  FFields.Free;
   FProperties.Free;
   inherited;
 end;
@@ -1033,6 +1301,11 @@ end;
 function TCnObjectInspector.GetEventCount: Integer;
 begin
   Result := FEvents.Count;
+end;
+
+function TCnObjectInspector.GetFieldCount: Integer;
+begin
+  Result := FFields.Count;
 end;
 
 function TCnObjectInspector.GetPropCount: Integer;
@@ -1099,11 +1372,37 @@ begin
   end;
 end;
 
+{$IFDEF SUPPORT_ENHANCED_RTTI}
+
+function TCnObjectInspector.IndexOfField(AFields: TObjectList;
+  const AFieldName: string): TCnFieldObject;
+var
+  I: Integer;
+  AField: TCnFieldObject;
+begin
+  Result := nil;
+  if AFields <> nil then
+  begin
+    for I := 0 to AFields.Count - 1 do
+    begin
+      AField := TCnFieldObject(AFields.Items[I]);
+      if AField.FieldName = AFieldName then
+      begin
+        Result := AField;
+        Exit;
+      end;
+    end;
+  end;
+end;
+
+{$ENDIF}
+
 function TCnObjectInspector.IndexOfProperty(AProperties: TObjectList;
   const APropName: string): TCnPropertyObject;
 var
-  I: Integer;
+  I, P: Integer;
   AProp: TCnPropertyObject;
+  TmpPropName: string;
 begin
   Result := nil;
   if AProperties <> nil then
@@ -1115,6 +1414,19 @@ begin
       begin
         Result := AProp;
         Exit;
+      end
+      else
+      begin
+        P := Pos('[', AProp.PropName);
+        if P > 0 then
+        begin
+          TmpPropName := Copy(AProp.PropName, 1, P - 1);
+          if TmpPropName = APropName then
+          begin
+            Result := AProp;
+            Exit;
+          end;
+        end;
       end;
     end;
   end;
@@ -1232,13 +1544,23 @@ var
   RttiContext: TRttiContext;
   RttiType: TRttiType;
   RttiProperty: TRttiProperty;
+  RttiField: TRttiField;
+  AField: TCnFieldObject;
+{$IFDEF SUPPORT_ENHANCED_INDEXEDPROPERTY}
+  RttiIndexedProperty: TRttiIndexedProperty;
+{$ENDIF}
   RttiMethod: TRttiMethod;
   AMethod: TCnMethodObject;
 
   function GetMethodFullName(ARttiMethod: TRttiMethod): string;
   begin
+  {$IFDEF WIN64}
+    Result := Format('$%16.16x: %s;', [NativeInt(ARttiMethod.CodeAddress),
+      ARttiMethod.ToString]);
+  {$ELSE}
     Result := Format('$%8.8x: %s;', [Integer(ARttiMethod.CodeAddress),
       ARttiMethod.ToString]);
+  {$ENDIF}
   end;
 {$ENDIF}
 
@@ -1258,19 +1580,35 @@ var
 
   function AlreadyHasProperty(const APropName: string): Boolean;
   var
-    I: Integer;
+    I, P: Integer;
     PropObj: TCnPropertyObject;
+    TmpPropName: string;
   begin
     Result := False;
     for I := 0 to Properties.Count - 1 do
     begin
       PropObj := TCnPropertyObject(Properties[I]);
       if PropObj <> nil then
+      begin
         if PropObj.PropName = APropName then
         begin
           Result := True;
           Exit;
+        end
+        else // 部分存储的属性名是 Items[I: Integer] 的形式
+        begin
+          P := Pos('[', PropObj.PropName);
+          if P > 0 then
+          begin
+            TmpPropName := Copy(PropObj.PropName, 1, P - 1);
+            if TmpPropName = APropName then
+            begin
+              Result := True;
+              Exit;
+            end;
+          end;
         end;
+      end;
     end;
   end;
 
@@ -1292,12 +1630,50 @@ var
     end;
   end;
 
+{$IFDEF SUPPORT_ENHANCED_RTTI}
+{$IFDEF SUPPORT_ENHANCED_INDEXEDPROPERTY}
+  procedure CalcIndexedProperty(Indexed: TRttiIndexedProperty;
+    IndexedProp: TCnPropertyObject);
+  var
+    M: TRttiMethod;
+    P: TArray<TRttiParameter>;
+    I: Integer;
+  begin
+    IndexedProp.PropName := Indexed.Name + '[';
+    M := Indexed.ReadMethod;
+    if M <> nil then
+    begin
+      P := M.GetParameters;
+      IndexedProp.IndexParamCount := Length(P);
+      for I := 0 to Length(P) - 2 do
+        IndexedProp.PropName := IndexedProp.PropName + P[I].ToString + ', ';
+      IndexedProp.PropName := IndexedProp.PropName + P[Length(P) - 1].ToString;
+    end
+    else
+    begin
+      M := Indexed.WriteMethod;
+      if M = nil then
+      begin
+        IndexedProp.PropName := IndexedProp.PropName + ']';
+        Exit;
+      end;
+      P := M.GetParameters;
+      IndexedProp.IndexParamCount := Length(P) - 1;
+      for I := 0 to Length(P) - 3 do
+        IndexedProp.PropName := IndexedProp.PropName + P[I].ToString + ', ';
+      IndexedProp.PropName := IndexedProp.PropName + P[Length(P) - 2].ToString;
+    end;
+    IndexedProp.PropName := IndexedProp.PropName + ']';
+  end;
+{$ENDIF}
+{$ENDIF}
 begin
   if ObjectInstance <> nil then
   begin
     if not IsRefresh then
     begin
       Properties.Clear;
+      Fields.Clear;
       Events.Clear;
       Components.Clear;
       Controls.Clear;
@@ -1448,11 +1824,15 @@ begin
 
               AProp.ObjValue := nil;
               AProp.IntfValue := nil;
-              if AProp.IsObjOrIntf and RttiProperty.GetValue(FObjectInstance).IsObject then
-                AProp.ObjValue := RttiProperty.GetValue(FObjectInstance).AsObject
-              else if AProp.IsObjOrIntf and (RttiProperty.GetValue(FObjectInstance).TypeInfo <> nil) and
-                (RttiProperty.GetValue(FObjectInstance).TypeInfo^.Kind = tkInterface) then
-                AProp.IntfValue := RttiProperty.GetValue(FObjectInstance).AsInterface;
+              try
+                if AProp.IsObjOrIntf and RttiProperty.GetValue(FObjectInstance).IsObject then
+                  AProp.ObjValue := RttiProperty.GetValue(FObjectInstance).AsObject
+                else if AProp.IsObjOrIntf and (RttiProperty.GetValue(FObjectInstance).TypeInfo <> nil) and
+                  (RttiProperty.GetValue(FObjectInstance).TypeInfo^.Kind = tkInterface) then
+                  AProp.IntfValue := RttiProperty.GetValue(FObjectInstance).AsInterface;
+              except
+                // Getting Some Property causes Exception. Catch it.;
+              end;
 
               S := GetRttiPropValueStr(FObjectInstance, RttiProperty);
               if S <> AProp.DisplayValue then
@@ -1501,6 +1881,34 @@ begin
           end;
         end;
 
+{$IFDEF SUPPORT_ENHANCED_INDEXEDPROPERTY}
+        // RTTIIndexedProperties
+        for RttiIndexedProperty in RttiType.GetIndexedProperties do
+        begin
+          if not AlreadyHasProperty(RttiIndexedProperty.Name) or IsRefresh then
+          begin
+            if not IsRefresh then
+            begin
+              AProp := TCnPropertyObject.Create;
+              AProp.IsNewRTTI := True;
+            end
+            else
+              AProp := IndexOfProperty(Properties, RttiIndexedProperty.Name);
+
+            CalcIndexedProperty(RttiIndexedProperty, AProp);
+            AProp.PropType := RttiIndexedProperty.PropertyType.TypeKind;
+            AProp.IsObjOrIntf := AProp.PropType in [tkClass, tkInterface];
+
+            AProp.DisplayValue := '<Indexed Property>';
+            AProp.Changed := False;
+            if not IsRefresh then
+              Properties.Add(AProp);
+
+            Include(FContentTypes, pctProps);
+          end;
+        end;
+{$ENDIF}
+
         for RttiMethod in RttiType.GetMethods do
         begin
           S := GetMethodFullName(RttiMethod);
@@ -1527,10 +1935,58 @@ begin
 
           Include(FContentTypes, pctMethods);
         end;
+
+        // 获取 Fields
+        for RttiField in RttiType.GetFields do
+        begin
+          if not IsRefresh then
+            AField := TCnFieldObject.Create
+          else
+            AField := IndexOfField(FFields, RttiField.Name);
+
+          AField.FieldName := RttiField.Name; // 不能用 RttiField.ToString，否则 IndexOfFields 找不到
+          AField.Offset := RttiField.Offset;
+          AField.FieldType := RttiField.FieldType;
+          AField.IsObjOrIntf := RttiField.FieldType.TypeKind in [tkClass, tkInterface];
+
+          try
+            AField.FieldValue := RttiField.GetValue(FObjectInstance);
+          except
+            // Getting Some Property causes Exception. Catch it.
+            AField.FieldValue := nil;
+          end;
+
+          AField.ObjValue := nil;
+          AField.IntfValue := nil;
+          try
+            if AField.IsObjOrIntf and RttiField.GetValue(FObjectInstance).IsObject then
+              AField.ObjValue := RttiField.GetValue(FObjectInstance).AsObject
+            else if AField.IsObjOrIntf and (RttiField.GetValue(FObjectInstance).TypeInfo <> nil) and
+              (RttiField.GetValue(FObjectInstance).TypeInfo^.Kind = tkInterface) then
+              AField.IntfValue := RttiField.GetValue(FObjectInstance).AsInterface;
+          except
+            // Getting Some Property causes Exception. Catch it.;
+          end;
+
+          S := GetRttiFieldValueStr(FObjectInstance, RttiField);
+          if S <> AField.DisplayValue then
+          begin
+            AField.DisplayValue := S;
+            AField.Changed := True;
+          end
+          else
+            AField.Changed := False;
+
+          if not IsRefresh then
+            FFields.Add(AField);
+
+          Include(FContentTypes, pctFields);
+        end;
       end;
     finally
       RttiContext.Free;
     end;
+
 {$ENDIF}
 
     // 额外添加显示不在 published 域的一些已知的公用属性
@@ -1646,6 +2102,24 @@ begin
         AddNewProp(S, AProp);
       end;
 
+      if not AlreadyHasProperty('Text') or IsRefresh then
+      begin
+        // 添加 Control 的 Text
+        if not IsRefresh then
+          AProp := TCnPropertyObject.Create
+        else
+          AProp := IndexOfProperty(Properties, 'Text');
+
+        AProp.PropName := 'Text';
+        AProp.PropType := tkString;
+        AProp.IsObjOrIntf := False;
+        AProp.PropValue := TConrolAccess(FObjectInstance).Text;
+        AProp.ObjValue := nil;
+
+        S := TConrolAccess(FObjectInstance).Text;
+        AddNewProp(S, AProp);
+      end;
+
       if not AlreadyHasProperty('ControlState') or IsRefresh then
       begin
         // 添加 Control 的 ControlState
@@ -1719,7 +2193,11 @@ begin
         S := ACollection.GetNamePath;
         if S = '' then S := '*';
         AItemObj.ItemName := Format('%s.Item[%d]', [S, I]);
+{$IFDEF WIN64}
+        AItemObj.DisplayValue := Format('%s: $%16.16x', [AItemObj.ObjClassName, NativeInt(AItemObj.ObjValue)]);
+{$ELSE}
         AItemObj.DisplayValue := Format('%s: $%8.8x', [AItemObj.ObjClassName, Integer(AItemObj.ObjValue)]);
+{$ENDIF}
 
         if not IsExisting then
           CollectionItems.Add(AItemObj);
@@ -1754,7 +2232,12 @@ begin
         S := AMenuItem.GetNamePath;
         if S = '' then S := '(noname)';
         AMenuObj.ItemName := Format('%s.Item[%d]', [S, I]);
+
+{$IFDEF WIN64}
+        AMenuObj.DisplayValue := Format('%s: $%16.16x', [AMenuObj.ObjClassName, NativeInt(AMenuObj.ObjValue)]);
+{$ELSE}
         AMenuObj.DisplayValue := Format('%s: $%8.8x', [AMenuObj.ObjClassName, Integer(AMenuObj.ObjValue)]);
+{$ENDIF}
 
         if not IsExisting then
           FMenuItems.Add(AMenuObj);
@@ -1788,8 +2271,13 @@ begin
           ACompObj.Changed := False;
 
         ACompObj.DisplayName := Format('%s.Components[%d]', [AComp.Name, I]);
+{$IFDEF WIN64}
+        ACompObj.DisplayValue := Format('%s: %s: $%16.16x', [ACompObj.CompName,
+          ACompObj.ObjClassName, NativeInt(ACompObj.ObjValue)]);
+{$ELSE}
         ACompObj.DisplayValue := Format('%s: %s: $%8.8x', [ACompObj.CompName,
           ACompObj.ObjClassName, Integer(ACompObj.ObjValue)]);
+{$ENDIF}
 
         if not IsExisting then
           Components.Add(ACompObj);
@@ -1823,8 +2311,13 @@ begin
             AControlObj.Changed := False;
 
           AControlObj.DisplayName := Format('%s.Controls[%d]', [AControl.Name, I]);
+{$IFDEF WIN64}
+          AControlObj.DisplayValue := Format('%s: %s: $%16.16x', [AControlObj.CtrlName,
+            AControlObj.ObjClassName, NativeInt(AControlObj.ObjValue)]);
+{$ELSE}
           AControlObj.DisplayValue := Format('%s: %s: $%8.8x', [AControlObj.CtrlName,
             AControlObj.ObjClassName, Integer(AControlObj.ObjValue)]);
+{$ENDIF}
 
           if not IsExisting then
             Controls.Add(AControlObj);
@@ -1942,6 +2435,10 @@ begin
   Inc(CnFormTop, 20);
   if CnFormLeft >= Screen.Width - Self.Width - 30 then CnFormLeft := 50;
   if CnFormTop >= Screen.Height - Self.Height - 30 then CnFormTop := 50;
+
+{$IFDEF COMPILER7_UP}
+  pnlHierarchy.ParentBackground := False;
+{$ENDIF}
 end;
 
 procedure TCnPropSheetForm.InspectObject(Data: Pointer);
@@ -2005,6 +2502,7 @@ begin
 
   lvProp.Items.Clear;
   lvEvent.Items.Clear;
+  lvFields.Items.Clear;
   lvMethods.Items.Clear;
   lvCollectionItem.Items.Clear;
   lvMenuItem.Items.Clear;
@@ -2016,8 +2514,13 @@ begin
   else
     edtClassName.Text := 'Unknown Object';
 
+{$IFDEF WIN64}
+  edtObj.Text := Format('%16.16x', [NativeInt(FInspector.ObjectAddr)]);
+  edtClassName.Text := Format('%s: $%16.16x', [edtClassName.Text, NativeInt(FInspector.ObjectAddr)]);
+{$ELSE}
   edtObj.Text := Format('%8.8x', [Integer(FInspector.ObjectAddr)]);
   edtClassName.Text := Format('%s: $%8.8x', [edtClassName.Text, Integer(FInspector.ObjectAddr)]);
+{$ENDIF}
 
   for I := 0 to FInspector.PropCount - 1 do
   begin
@@ -2028,6 +2531,18 @@ begin
       SubItems.Add(TCnPropertyObject(FInspector.Properties.Items[I]).DisplayValue);
     end;
   end;
+
+{$IFDEF SUPPORT_ENHANCED_RTTI}
+  for I := 0 to FInspector.FieldCount - 1 do
+  begin
+    with lvFields.Items.Add do
+    begin
+      Data := FInspector.Fields.Items[I];
+      Caption := TCnFieldObject(FInspector.Fields.Items[I]).FieldName;
+      SubItems.Add(TCnFieldObject(FInspector.Fields.Items[I]).DisplayValue);
+    end;
+  end;
+{$ENDIF}
 
   for I := 0 to FInspector.EventCount - 1 do
   begin
@@ -2182,17 +2697,18 @@ var
   FixWidth: Integer;
 begin
   if Parent <> nil then
-    FixWidth := 20
+    FixWidth := 16
   else
-    FixWidth := 28;
+    FixWidth := 24;
 
-  lvProp.Columns[1].Width := Self.Width - lvProp.Columns[0].Width - FixWidth;
-  lvEvent.Columns[1].Width := Self.Width - lvEvent.Columns[0].Width - FixWidth;
-  lvMethods.Columns[1].Width := Self.Width - lvMethods.Columns[0].Width - FixWidth;
-  lvCollectionItem.Columns[1].Width := Self.Width - lvCollectionItem.Columns[0].Width - FixWidth;
-  lvMenuItem.Columns[1].Width := Self.Width - lvMenuItem.Columns[0].Width - FixWidth;
-  lvComp.Columns[1].Width := Self.Width - lvComp.Columns[0].Width - FixWidth;
-  lvControl.Columns[1].Width := Self.Width - lvControl.Columns[0].Width - FixWidth;
+  lvProp.Columns[1].Width := Self.ClientWidth - lvProp.Columns[0].Width - FixWidth;
+  lvEvent.Columns[1].Width := Self.ClientWidth - lvEvent.Columns[0].Width - FixWidth;
+  lvFields.Columns[1].Width := Self.ClientWidth - lvFields.Columns[0].Width - FixWidth;
+  lvMethods.Columns[1].Width := Self.ClientWidth - lvMethods.Columns[0].Width - FixWidth;
+  lvCollectionItem.Columns[1].Width := Self.ClientWidth - lvCollectionItem.Columns[0].Width - FixWidth;
+  lvMenuItem.Columns[1].Width := Self.ClientWidth - lvMenuItem.Columns[0].Width - FixWidth;
+  lvComp.Columns[1].Width := Self.ClientWidth - lvComp.Columns[0].Width - FixWidth;
+  lvControl.Columns[1].Width := Self.ClientWidth - lvControl.Columns[0].Width - FixWidth;
   UpdatePanelPositions;
 end;
 
@@ -2201,6 +2717,8 @@ begin
   FHierarchys.Free;
   FHierLines.Free;
   FHierPanels.Free;
+  FComponentTree.Free;
+  FControlTree.Free;
   if FInspector <> nil then
     FreeAndNil(FInspector);
 end;
@@ -2219,6 +2737,7 @@ var
 begin
   // 根据 FHierarchys 绘制 Hierarchy 图
   FHierPanels.Clear;
+  FHierLines.Clear;
   for I := 0 to FHierarchys.Count - 1 do
   begin
     APanel := TPanel.Create(nil);
@@ -2227,6 +2746,9 @@ begin
     APanel.BevelInner := bvRaised;
     APanel.Parent := pnlHierarchy;
     APanel.Color := clBtnFace;
+{$IFDEF COMPILER7_UP}
+    APanel.ParentBackground := False;
+{$ENDIF}
     FHierPanels.Add(APanel);
 
     ABevel := TBevel.Create(nil);
@@ -2246,6 +2768,7 @@ begin
   AControl := nil; NeedChangePanel := False;
   case IndexOfContentTypeStr(tsSwitch.Tabs.Strings[NewTab]) of
     pctProps:             AControl := lvProp;
+    pctFields:            AControl := lvFields;
     pctEvents:            AControl := lvEvent;
     pctMethods:           AControl := lvMethods;
     pctCollectionItems:   AControl := lvCollectionItem;
@@ -2432,7 +2955,7 @@ end;
 
 procedure TCnPropSheetForm.btnRefreshClick(Sender: TObject);
 begin
-  EvaluatePointer(FObjectPointer, FInspectParam, Self);
+  EvaluatePointer(FObjectPointer, FInspectParam, Self, FSyncMode);
 end;
 
 procedure TCnPropSheetForm.btnTopClick(Sender: TObject);
@@ -2449,7 +2972,10 @@ var
 begin
   P := StrToIntDef('$' + edtObj.Text, 0);
   if P <> 0 then
+  begin
     EvaluatePointer(Pointer(P), FInspectParam, Self);
+    ShowTree := False;
+  end;
 end;
 
 procedure TCnPropSheetForm.edtObjKeyPress(Sender: TObject; var Key: Char);
@@ -2471,13 +2997,13 @@ begin
   begin
     APanel := TPanel(FHierPanels.Items[I]);
     APanel.Left := PanelMargin;
-    APanel.Width := Width - PanelMargin * 2;
+    APanel.Width := pnlHierarchy.ClientWidth - PanelMargin * 2;
     APanel.Top := PanelMargin + I * PanelStep;
     APanel.Height := PanelStep - PanelMargin;
     APanel.Color := clBtnFace;
 
     ABevel := TBevel(FHierLines.Items[I]);
-    ABevel.Left := pnlHierarchy.Width div 2;
+    ABevel.Left := pnlHierarchy.ClientWidth div 2;
     ABevel.Top := APanel.Top + APanel.Height;
     ABevel.Height := PanelMargin;
     ABevel.Visible := I <> FHierLines.Count - 1;
@@ -2696,6 +3222,197 @@ begin
   end;
   lblPixel.Caption := S;
 end;
+
+procedure TCnPropSheetForm.SetShowTree(const Value: Boolean);
+begin
+  if FShowTree <> Value then
+  begin
+    FShowTree := Value;
+    pnlTree.Visible := Value;
+
+    if Value then // 显示树形区域
+    begin
+      if pnlTree.Width < CnPnlTreeWidth then
+        pnlTree.Width := CnPnlTreeWidth;
+      Width := Width + CnPnlTreeWidth;
+      Left := Left - CnPnlTreeWidth;
+      if Left < 10 then
+        Left := 10;
+      btnTree.Caption := '>';
+    end
+    else // 隐藏树型区域
+    begin
+      Width := Width - CnPnlTreeWidth;
+      Left := Left + CnPnlTreeWidth;
+      btnTree.Caption := '<';
+    end;
+  end;
+end;
+
+procedure TCnPropSheetForm.btnTreeClick(Sender: TObject);
+begin
+  ShowTree := not ShowTree;
+  if ShowTree then
+  begin
+    SearchTrees;
+    UpdateToTree(tsTree.TabIndex > 0);
+  end;
+end;
+
+procedure TCnPropSheetForm.SearchTrees;
+var
+  Comp: TComponent;
+  Ctrl: TControl;
+  RootComponent: TComponent;
+  RootControl: TControl;
+
+  procedure AddComponentToTree(AComp: TComponent; ParentLeaf: TCnLeaf = nil);
+  var
+    I: Integer;
+    Leaf: TCnLeaf;
+  begin
+    if ParentLeaf = nil then
+      ParentLeaf := FComponentTree.Root;
+
+    Leaf := FComponentTree.AddChild(ParentLeaf);
+    Leaf.Obj := AComp;
+
+{$IFDEF WIN64}
+    Leaf.Text := Format('%s: %s: $%16.16x', [AComp.Name, AComp.ClassName, NativeInt(AComp)]);
+{$ELSE}
+    Leaf.Text := Format('%s: %s: $%8.8x', [AComp.Name, AComp.ClassName, Integer(AComp)]);
+{$ENDIF}
+
+    for I := 0 to AComp.ComponentCount - 1 do
+      AddComponentToTree(AComp.Components[I], Leaf);
+  end;
+
+  procedure AddControltoTree(ACtrl: TControl; ParentLeaf: TCnLeaf = nil);
+  var
+    I: Integer;
+    Leaf: TCnLeaf;
+  begin
+    if ParentLeaf = nil then
+      ParentLeaf := FControlTree.Root;
+
+    Leaf := FControlTree.AddChild(ParentLeaf);
+    Leaf.Obj := ACtrl;
+
+{$IFDEF WIN64}
+    Leaf.Text := Format('%s: %s: $%16.16x', [ACtrl.Name, ACtrl.ClassName, NativeInt(ACtrl)]);
+{$ELSE}
+    Leaf.Text := Format('%s: %s: $%8.8x', [ACtrl.Name, ACtrl.ClassName, Integer(ACtrl)]);
+{$ENDIF}
+
+    if ACtrl is TWinControl then
+    for I := 0 to (ACtrl as TWinControl).ControlCount - 1 do
+      AddControltoTree((ACtrl as TWinControl).Controls[I], Leaf);
+  end;
+
+begin
+  if FObjectPointer = nil then
+    Exit;
+
+  if FComponentTree = nil then
+  begin
+    FComponentTree := TCnTree.Create;
+    FComponentTree.OnSaveANode := SaveATreeNode;
+  end
+  else
+    FComponentTree.Clear;
+
+  if FControlTree = nil then
+  begin
+    FControlTree := TCnTree.Create;
+    FControlTree.OnSaveANode := SaveATreeNode;
+  end
+  else
+    FControlTree.Clear;
+
+  try
+    if TObject(FObjectPointer) is TComponent then
+    begin
+      Comp := TObject(FObjectPointer) as TComponent;
+      RootComponent := Comp;
+      while RootComponent.Owner <> nil do
+        RootComponent := RootComponent.Owner;
+      AddComponentToTree(RootComponent);
+    end;
+
+    if TObject(FObjectPointer) is TControl then
+    begin
+      Ctrl := TObject(FObjectPointer) as TControl;
+      RootControl := Ctrl;
+      while RootControl.Parent <> nil do
+        RootControl := RootControl.Parent;
+      AddControlToTree(RootControl);
+    end;
+  except
+    ; // 如果不是 TObject，屏蔽异常
+  end;
+end;
+
+procedure TCnPropSheetForm.UpdateToTree(IsControl: Boolean);
+var
+  I: Integer;
+  Ptr: Pointer;
+begin
+  if not IsControl then
+    FComponentTree.SaveToTreeView(TreeView)
+  else
+    FControlTree.SaveToTreeView(TreeView);
+
+  // 展开
+  if TreeView.Items.Count > 0 then
+    TreeView.Items[0].Expand(True);
+
+  // 定位
+  for I := 0 to TreeView.Items.Count - 1 do
+  begin
+    Ptr := TreeView.Items[I].Data;
+    if Ptr = FObjectPointer then
+    begin
+      TreeView.Items[I].Selected := True;
+      TreeView.Items[I].MakeVisible;
+      TreeView.SetFocus;
+      Exit;
+    end;
+  end;
+end;
+
+procedure TCnPropSheetForm.tsTreeChange(Sender: TObject; NewTab: Integer;
+  var AllowChange: Boolean);
+begin
+  UpdateToTree(NewTab > 0);
+end;
+
+procedure TCnPropSheetForm.SaveATreeNode(ALeaf: TCnLeaf;
+  ATreeNode: TTreeNode; var Valid: Boolean);
+begin
+  ATreeNode.Text := ALeaf.Text;
+  ATreeNode.Data := Pointer(ALeaf.Obj);
+end;
+
+procedure TCnPropSheetForm.TreeViewDblClick(Sender: TObject);
+var
+  Node: TTreeNode;
+begin
+  Node := TreeView.Selected;
+  if Node.Data <> nil then
+    EvaluatePointer(Node.Data, FInspectParam, Self);
+end;
+
+{$IFDEF SUPPORT_ENHANCED_RTTI}
+
+{ TCnFieldObject }
+
+constructor TCnFieldObject.Create;
+begin
+  FIsNewRTTI := True;
+  FCanModify := True;
+end;
+
+{$ENDIF}
 
 initialization
   FSheetList := TComponentList.Create(True);
