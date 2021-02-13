@@ -72,7 +72,7 @@ uses
   vmsys, sysutils,
   vm_options_dlg, windows, vm.ide.actions.manager, forms, opt_frame,
   vm.ide.actions.options_frame, vm.ide.options.handler, vm.ide.actions.options_handler,
-  vm.ide.options.treehandler, vm.debug, vm.cn_debug, vm.ide.debug, str_utils, collections.common;
+  vm.ide.options.treehandler, vm.debug, vm.ide.debug, str_utils, collections.common;
 
 
 type
@@ -187,12 +187,17 @@ begin
   Init;
   BuildWizardParamsTree;
   RegisterAddInOptions;
+//  SetStylesServices(function : TCustomStyleServices
+//  begin
+//    Result := (BorlandIDEServices as IOTAIDEThemingServices).StyleServices;
+//  end);
 end;
 
 destructor TVMMainWizard.Destroy;
 var
   Wiz: TVMBaseWizard;
 begin
+//  SetStylesServices(nil);
   LogEnterLeave('TVMMainWizard.Destroy');
   UnRegisterAddInOptions;
   FreeAndNil(FAddInOptionsList);
@@ -440,8 +445,8 @@ begin
     Logger.LogLevel := Params.LogLevel;
     if logIDE in Params.Loggers then
       Logger.AppendLogger('IDE', TIDELogger.Create(Params.LogLevel));
-    if logCNDebug in Params.Loggers then
-      Logger.AppendLogger('CNDEBUG', TCnDebugLogger.Create(Params.LogLevel));
+//    if logCNDebug in Params.Loggers then
+//      Logger.AppendLogger('CNDEBUG', TCnDebugLogger.Create(Params.LogLevel));
   finally
     FreeAndNil(Params);
   end;

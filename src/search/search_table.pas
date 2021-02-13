@@ -4,7 +4,7 @@ interface
 
 uses
   vtree_mod, search_types, generics.defaults, classes, virtualtrees, observer, graphics, types,
-  vm.gui.control_updater;
+  vm.gui.control_updater, comctrls;
 
 type
   TInfoComparer = class
@@ -60,6 +60,38 @@ type
     destructor Destroy; override;
 
     function GetNodeData(aNode: PVirtualNode): TVMSearchResultsItem;
+    procedure SetData(aListData: IObservableData<TVMSearchResultsList>);
+  end;
+
+  TSearchResultsListView = class(TListView)
+  private
+    FInfoComparer: TInfoComparer;
+    FTextDrawer: TFormatTextDrawer;
+
+    FListUpdater: TControlUpdater;
+
+    FCurList: TVMSearchResultsList;
+    FCurListData: IObservableData<TVMSearchResultsList>;
+
+    FDataObserver: IDataObserver<TVMSearchResultsList>;
+    FListObserver: IVMSearchResultsListListener;
+
+    procedure OnListChanged;
+    procedure OnNewList(aData: TVMSearchResultsList);
+    procedure UpdateList;
+
+    procedure OnGetItemData(Sender: TObject; Item: TListItem);
+    procedure OnCustomDrawResultsItem(Sender: TCustomListView; Item: TListItem;
+        Rect: TRect; State: TOwnerDrawState);
+    procedure OnAdvancedCustomDrawResultsItem(Sender: TCustomListView; Item: TListItem;
+        State: TCustomDrawState; Stage: TCustomDrawStage; var DefaultDraw: Boolean);
+    procedure OnAdvancedCustomDrawResultsSubItem(Sender: TCustomListView; Item: TListItem;
+        SubItem: Integer; State: TCustomDrawState; Stage: TCustomDrawStage;
+        var DefaultDraw: Boolean);
+    function GetSearchItem(Index: Integer): TVMSearchResultsItem;
+  public
+    constructor Create(AOwner: TComponent); override;
+    destructor Destroy; override;
     procedure SetData(aListData: IObservableData<TVMSearchResultsList>);
   end;
 
@@ -392,6 +424,166 @@ procedure TVMSearchResultsListListener.ListChanged;
 begin
   if Assigned(FOnListChanged) then
     FOnListChanged;
+end;
+
+{ TSearchResultsListView }
+
+constructor TSearchResultsListView.Create(AOwner: TComponent);
+begin
+  inherited;
+  FInfoComparer := TInfoComparer.Create;
+  FTextDrawer := TFormatTextDrawer.Create;
+  FDataObserver := TDelegatedDataObserver<TVMSearchResultsList>.Create(OnNewList);
+  FListObserver := TVMSearchResultsListListener.Create(OnListChanged);
+  FListUpdater := TControlUpdater.Create(UpdateList);
+
+  RowSelect := True;
+  OwnerData := True;
+//  OwnerDraw := False;
+  OnData := OnGetItemData;
+//  OnDrawItem := OnCustomDrawResultsItem;
+//  OnAdvancedCustomDrawItem := OnAdvancedCustomDrawResultsItem;
+  OnAdvancedCustomDrawSubItem := OnAdvancedCustomDrawResultsSubItem;
+end;
+
+destructor TSearchResultsListView.Destroy;
+begin
+  SetData(nil);
+  FreeAndNil(FListUpdater);
+  FreeAndNil(FInfoComparer);
+  FreeAndNil(FTextDrawer);
+  inherited;
+end;
+
+function TSearchResultsListView.GetSearchItem(Index: Integer): TVMSearchResultsItem;
+begin
+  if FCurList <> nil then
+    Result := FCurList.Items[Index]
+  else
+    Result := nil;
+end;
+
+procedure TSearchResultsListView.OnGetItemData(Sender: TObject; Item: TListItem);
+var
+  ResultsItem: TVMSearchResultsItem;
+
+  function GetItemData(Column: Integer): string;
+  begin
+    case Column of
+      cstColFile:
+        Result := ResultsItem.FileName;
+      cstColPath:
+        Result := ResultsItem.FilePath;
+      cstColText:
+        Result := ResultsItem.Text;
+      cstColLine:
+        Result := IntToStr(ResultsItem.Line);
+      cstColRating:
+        Result := IntToStr(ResultsItem.Rating);
+    else
+      Result := '';
+    end;
+  end;
+
+begin
+  ResultsItem := GetSearchItem(Item.Index);
+  if ResultsItem = nil then
+    Exit;
+
+  Item.Caption := '';
+  Item.SubItems.Add(GetItemData(cstColText));
+  Item.SubItems.Add(GetItemData(cstColFile));
+  Item.SubItems.Add(GetItemData(cstColLine));
+  Item.SubItems.Add(GetItemData(cstColRating));
+  Item.SubItems.Add(GetItemData(cstColPath));
+end;
+
+procedure TSearchResultsListView.OnCustomDrawResultsItem(Sender: TCustomListView; Item: TListItem; Rect: TRect; State:
+    TOwnerDrawState);
+var
+  ResultsItem: TVMSearchResultsItem;
+begin
+  ResultsItem := GetSearchItem(Item.Index);
+  if ResultsItem = nil then
+    Exit;
+
+  FTextDrawer.Draw(ResultsItem.RawText, Sender.Canvas, Rect);
+end;
+
+procedure TSearchResultsListView.OnAdvancedCustomDrawResultsItem(Sender: TCustomListView; Item: TListItem;
+    State: TCustomDrawState; Stage: TCustomDrawStage; var DefaultDraw: Boolean);
+var
+  ResultsItem: TVMSearchResultsItem;
+begin
+  ResultsItem := GetSearchItem(Item.Index);
+  if ResultsItem = nil then
+    Exit;
+
+  FTextDrawer.Draw(ResultsItem.RawText, Sender.Canvas, Item.DisplayRect(drBounds));
+end;
+
+procedure TSearchResultsListView.OnAdvancedCustomDrawResultsSubItem(Sender: TCustomListView; Item: TListItem;
+    SubItem: Integer; State: TCustomDrawState; Stage: TCustomDrawStage; var DefaultDraw: Boolean);
+var
+  ResultsItem: TVMSearchResultsItem;
+begin
+  ResultsItem := GetSearchItem(Item.Index);
+  if ResultsItem = nil then
+    Exit;
+
+  if SubItem = cstColText + 1 then
+    DefaultDraw := not FTextDrawer.Draw(ResultsItem.RawText, Sender.Canvas, Item.DisplayRect(drBounds));
+end;
+
+procedure TSearchResultsListView.OnListChanged;
+begin
+  FListUpdater.RequestUpdate;
+end;
+
+procedure TSearchResultsListView.OnNewList(aData: TVMSearchResultsList);
+begin
+  if FCurList = aData then
+    Exit;
+
+  if FCurList <> nil then
+    FCurList.Listeners.RemoveListener(FListObserver);
+  FCurList := aData;
+
+  if FCurList <> nil then
+    FCurList.Listeners.RegisterListener(FListObserver);
+  FListUpdater.RequestUpdate;
+end;
+
+procedure TSearchResultsListView.SetData(aListData: IObservableData<TVMSearchResultsList>);
+begin
+  if FCurListData = aListData then
+    Exit;
+
+  FListUpdater.BeginUpdate;
+  try
+    if FCurListData <> nil then
+    begin
+      OnNewList(nil); // Remove list observer
+      FCurListData.RemoveObserver(FDataObserver);
+    end;
+    FCurListData := aListData;
+    if FCurListData <> nil then
+      FCurListData.RegisterObserver(FDataObserver);
+  finally
+    FListUpdater.EndUpdate;
+  end;
+end;
+
+procedure TSearchResultsListView.UpdateList;
+begin
+  Items.BeginUpdate;
+  try
+    Items.Clear;
+    if (FCurList <> nil) then
+      Items.Count := FCurList.Count;
+  finally
+    Items.EndUpdate;
+  end;
 end;
 
 end.

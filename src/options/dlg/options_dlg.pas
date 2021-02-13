@@ -17,7 +17,6 @@ type
     btnCancel: TBitBtn;
     pnlFiles: TPanel;
     OptionsFrame1: TOptionsFrame;
-    OpenFileFrame1: TOpenFileFrame;
     PageControl1: TPageControl;
     TabSheet1: TTabSheet;
     TabSheet2: TTabSheet;
@@ -41,6 +40,7 @@ type
     FCopyParams: TParamsTree;
     FOpenFileHandler: TBaseOpenFileHandler;
     FSearchHandler: TSearchHandler;
+    OpenFileFrame1: TOpenFileFrame;
   protected
     function CanCloseByDialogKey(aKeyCode: Word): Boolean; override;
     procedure SetupControls; override;
@@ -62,7 +62,7 @@ uses
 
 {$R *.dfm}
 const
-  cstTestPath = 'D:\dev\delphi';
+  cstTestPath = 'd:\Files\dev\vmtools\';
 
 type
   TTestOpenFileHandler = class(TBaseOpenFileHandler)
@@ -107,7 +107,9 @@ var
   G, G2: TParamsGroup;
 begin
   inherited Create(aOwner);
-
+  OpenFileFrame1 := TOpenFileFrame.Create(pnlFiles);
+  OpenFileFrame1.Parent := pnlFiles;
+  OpenFileFrame1.Align := alClient;
   FSearchHandler := TTestSearchHandler.Create;
   SearchResultFrame1.SetHandler(FSearchHandler);
 

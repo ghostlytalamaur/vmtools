@@ -28,6 +28,7 @@ type
 
     procedure OnShowOpenFileDialog(aSender: TObject);
     procedure OnCreateNewFile(aSender: TObject);
+
     function GetDlg: IObjectHolder<TCustomForm>;
     function GetDockForm: IVMCustomDockForm;
     function GetFrame: TOpenFileFrame;
@@ -190,7 +191,7 @@ var
   Dlg: TCreateFileDlg;
   OnOpenFile: TProc<string, Integer, Integer>;
 begin
-  OnOpenFile := procedure (aFilePath: string; aLineNum, aStartColumn: Integer)
+  OnOpenFile := procedure (aFilePath: string; aLineNum: Integer; aStartColumn: Integer)
     begin
       if not aFilePath.IsEmpty then
       begin

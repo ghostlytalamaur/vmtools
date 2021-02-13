@@ -3,7 +3,7 @@ unit vm.debug;
 interface
 
 uses
-  cndebug, generics.collections;
+  generics.collections;
 
 
 type

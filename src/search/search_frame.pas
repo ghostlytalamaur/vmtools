@@ -49,9 +49,13 @@ type
     procedure miShowHeaderClick(Sender: TObject);
     procedure pmTreeViewPopup(Sender: TObject);
     procedure tbcTabsChange(Sender: TObject; NewTab: Integer; var AllowChange: Boolean);
+    procedure vstResultsAdvancedHeaderDraw(Sender: TVTHeader; var PaintInfo: THeaderPaintInfo; const Elements:
+        THeaderPaintElements);
     procedure vstResultsCanSplitterResizeNode(Sender: TBaseVirtualTree; P: TPoint; Node: PVirtualNode;
       Column: TColumnIndex; var Allowed: Boolean);
     procedure vstResultsChange(Sender: TBaseVirtualTree; Node: PVirtualNode);
+    procedure vstResultsHeaderDrawQueryElements(Sender: TVTHeader; var PaintInfo: THeaderPaintInfo; var Elements:
+        THeaderPaintElements);
     procedure vstResultsStateChange(Sender: TBaseVirtualTree; Enter, Leave: TVirtualTreeStates);
   private
     { Private declarations }
@@ -244,7 +248,7 @@ begin
   vstResults.TreeOptions.PaintOptions := [toHideFocusRect, toShowButtons, toShowDropmark, toThemeAware,
       toUseBlendedImages, toShowTreeLines, toShowVertGridLines, toFullVertGridLines, toShowHorzGridLines];
   vstResults.TreeOptions.SelectionOptions := [toFullRowSelect];
-  vstResults.Header.Options := [hoColumnResize, hoDrag, hoShowSortGlyphs, hoFullRepaintOnResize, hoHeaderClickAutoSort];
+  vstResults.Header.Options := vstResults.Header.Options + [hoColumnResize, hoDrag, hoShowSortGlyphs, hoFullRepaintOnResize, hoHeaderClickAutoSort];
 end;
 
 destructor TSearchResultFrame.Destroy;
@@ -504,6 +508,20 @@ procedure TSearchResultFrame.tbcTabsChange(Sender: TObject; NewTab: Integer;
     var AllowChange: Boolean);
 begin
   SetCurInfo(NewTab);
+end;
+
+procedure TSearchResultFrame.vstResultsAdvancedHeaderDraw(Sender: TVTHeader; var PaintInfo: THeaderPaintInfo; const
+    Elements: THeaderPaintElements);
+begin
+  PaintInfo.TargetCanvas.Brush.Color := vstResults.Color;
+  PaintInfo.TargetCanvas.Font.Color := vstResults.Font.Color;
+  PaintInfo.TargetCanvas.FillRect(PaintINfo.PaintRectangle);
+end;
+
+procedure TSearchResultFrame.vstResultsHeaderDrawQueryElements(Sender: TVTHeader; var PaintInfo: THeaderPaintInfo; var
+    Elements: THeaderPaintElements);
+begin
+  Elements := [hpeBackground]
 end;
 
 procedure TSearchResultFrame.vstResultsStateChange(Sender: TBaseVirtualTree; Enter, Leave: TVirtualTreeStates);

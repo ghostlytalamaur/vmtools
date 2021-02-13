@@ -22,7 +22,7 @@ object OptForm: TOptForm
     Height = 40
     Align = alBottom
     BevelOuter = bvNone
-    TabOrder = 0
+    TabOrder = 1
     DesignSize = (
       964
       40)
@@ -39,7 +39,7 @@ object OptForm: TOptForm
       Anchors = [akTop, akRight]
       Kind = bkOK
       NumGlyphs = 2
-      TabOrder = 0
+      TabOrder = 1
     end
     object btnCancel: TBitBtn
       AlignWithMargins = True
@@ -54,7 +54,7 @@ object OptForm: TOptForm
       Anchors = [akTop, akRight]
       Kind = bkCancel
       NumGlyphs = 2
-      TabOrder = 1
+      TabOrder = 2
     end
     object btnNewFile: TButton
       Left = 13
@@ -62,7 +62,7 @@ object OptForm: TOptForm
       Width = 75
       Height = 25
       Caption = 'New File'
-      TabOrder = 2
+      TabOrder = 0
       OnClick = btnNewFileClick
     end
   end
@@ -73,7 +73,7 @@ object OptForm: TOptForm
     Height = 616
     ActivePage = tsSearch
     Align = alClient
-    TabOrder = 1
+    TabOrder = 0
     object TabSheet1: TTabSheet
       Caption = 'Options'
       object pnlOptions: TPanel
@@ -102,13 +102,13 @@ object OptForm: TOptForm
             Columns = <
               item
                 Position = 0
+                Text = 'Key'
                 Width = 664
-                WideText = 'Key'
               end
               item
                 Position = 1
+                Text = 'Value'
                 Width = 200
-                WideText = 'Value'
               end>
           end
         end
@@ -125,7 +125,7 @@ object OptForm: TOptForm
             Width = 75
             Height = 25
             Caption = 'Set defaults'
-            TabOrder = 0
+            TabOrder = 1
             OnClick = btnDefaultOptionsClick
           end
           object btnApplyOptions: TButton
@@ -134,7 +134,7 @@ object OptForm: TOptForm
             Width = 75
             Height = 25
             Caption = 'Apply'
-            TabOrder = 1
+            TabOrder = 0
             OnClick = btnApplyOptionsClick
           end
         end
@@ -150,44 +150,6 @@ object OptForm: TOptForm
         Height = 588
         Align = alClient
         TabOrder = 0
-        inline OpenFileFrame1: TOpenFileFrame
-          Left = 1
-          Top = 1
-          Width = 954
-          Height = 586
-          Align = alClient
-          TabOrder = 0
-          ExplicitLeft = 1
-          ExplicitTop = 1
-          ExplicitWidth = 954
-          ExplicitHeight = 586
-          inherited Panel1: TPanel
-            Width = 954
-            Height = 586
-            ExplicitWidth = 954
-            ExplicitHeight = 586
-            inherited btnRebuild: TSpeedButton
-              Left = 923
-              ExplicitLeft = 794
-            end
-            inherited vstFiles: TVirtualStringTree
-              Width = 938
-              Height = 525
-              ExplicitWidth = 938
-              ExplicitHeight = 525
-            end
-            inherited StatusBar1: TStatusBar
-              Top = 566
-              Width = 952
-              ExplicitTop = 566
-              ExplicitWidth = 952
-            end
-            inherited cmbFilter: TComboBoxEx
-              Width = 909
-              ExplicitWidth = 909
-            end
-          end
-        end
       end
     end
     object tsSearch: TTabSheet
@@ -217,6 +179,7 @@ object OptForm: TOptForm
           inherited vstResults: TVirtualStringTree
             Width = 843
             Height = 546
+            TabOrder = 1
             ExplicitWidth = 843
             ExplicitHeight = 546
           end

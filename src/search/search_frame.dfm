@@ -17,49 +17,59 @@ object SearchResultFrame: TSearchResultFrame
     ClipboardFormats.Strings = (
       'HTML Format'
       'Unicode text')
-    Colors.UnfocusedColor = clBtnShadow
+    Color = 3288877
+    Colors.BorderColor = 5130309
+    Colors.GridLineColor = 5130309
+    Colors.TreeLineColor = 3288877
     Colors.UnfocusedSelectionColor = clHotLight
+    Colors.UnfocusedSelectionBorderColor = 5130309
+    Ctl3D = True
     DrawSelectionMode = smBlendedRectangle
     EmptyListMessage = 'No search results...'
+    Font.Charset = DEFAULT_CHARSET
+    Font.Color = 13290186
+    Font.Height = -11
+    Font.Name = 'Tahoma'
+    Font.Style = []
     Header.AutoSizeIndex = 0
-    Header.Font.Charset = DEFAULT_CHARSET
-    Header.Font.Color = clWindowText
-    Header.Font.Height = -11
-    Header.Font.Name = 'Tahoma'
-    Header.Font.Style = []
-    Header.Options = [hoColumnResize, hoDrag, hoShowSortGlyphs, hoFullRepaintOnResize, hoHeaderClickAutoSort]
+    Header.Background = 5130309
+    Header.Options = [hoColumnResize, hoDrag, hoOwnerDraw, hoShowSortGlyphs, hoFullRepaintOnResize, hoHeaderClickAutoSort]
     Header.SortColumn = 0
-    ParentColor = True
+    ParentCtl3D = False
+    ParentFont = False
     PopupMenu = pmTreeView
-    TabOrder = 0
+    TabOrder = 1
     TreeOptions.AutoOptions = [toAutoDropExpand, toAutoScroll, toAutoScrollOnExpand, toAutoSort, toAutoTristateTracking, toAutoDeleteMovedNodes, toAutoChangeScale]
     TreeOptions.MiscOptions = [toAcceptOLEDrop, toFullRepaintOnResize, toInitOnSave, toToggleOnDblClick, toWheelPanning, toNodeHeightResize, toEditOnClick]
     TreeOptions.PaintOptions = [toHideFocusRect, toShowButtons, toShowDropmark, toThemeAware, toUseBlendedImages]
     TreeOptions.SelectionOptions = [toFullRowSelect]
+    OnAdvancedHeaderDraw = vstResultsAdvancedHeaderDraw
     OnChange = vstResultsChange
     OnDblClick = vstResultsDblClick
+    OnHeaderDrawQueryElements = vstResultsHeaderDrawQueryElements
     Columns = <
       item
         Position = 0
+        Style = vsOwnerDraw
+        Text = 'Text'
         Width = 400
-        WideText = 'Text'
       end
       item
         Position = 1
+        Text = 'File'
         Width = 100
-        WideText = 'File'
       end
       item
         Position = 2
-        WideText = 'Line'
+        Text = 'Line'
       end
       item
         Position = 3
-        WideText = 'Rating'
+        Text = 'Rating'
       end
       item
         Position = 4
-        WideText = 'Path'
+        Text = 'Path'
       end>
   end
   object tbcTabs: TTabSet
@@ -72,13 +82,16 @@ object SearchResultFrame: TSearchResultFrame
     Margins.Right = 0
     Margins.Bottom = 0
     Align = alTop
+    BackgroundColor = 3288877
     EndMargin = 0
     Font.Charset = DEFAULT_CHARSET
-    Font.Color = clWindowText
+    Font.Color = clScrollBar
     Font.Height = -11
     Font.Name = 'Tahoma'
     Font.Style = []
     PopupMenu = pmTabs
+    SelectedColor = 9723935
+    SoftTop = True
     Style = tsModernTabs
     Tabs.Strings = (
       'Tab 1'
@@ -86,6 +99,7 @@ object SearchResultFrame: TSearchResultFrame
       'Very Very Long Tab Name')
     TabIndex = 0
     TabPosition = tpTop
+    UnselectedColor = 3288877
     OnChange = tbcTabsChange
   end
   object pnlStatus: TFlowPanel

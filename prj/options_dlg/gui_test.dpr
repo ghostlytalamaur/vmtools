@@ -20,7 +20,8 @@ uses
   vm.memodlg in '..\..\src\common\vm.memodlg.pas' {MemoDialog},
   search_table in '..\..\src\search\search_table.pas',
   vm.gui.control_updater in '..\..\src\common\vm.gui.control_updater.pas',
-  new_file_dlg in '..\..\src\vmtools\new_file\new_file_dlg.pas' {CreateFileDlg};
+  new_file_dlg in '..\..\src\vmtools\new_file\new_file_dlg.pas' {CreateFileDlg},
+  wiz.tabs.form in '..\..\src\vmtools\editor-tabs\wiz.tabs.form.pas' {TabsListForm};
 
 {$R *.res}
 

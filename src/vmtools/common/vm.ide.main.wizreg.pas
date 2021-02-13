@@ -12,7 +12,7 @@ procedure RegisterWizards(aRegisterMethod: TWizzardRegisterMethod);
 implementation
 
 uses
-  vm_wiz_search, vm_wiz_activate_editor, hist_wiz, wiz_openfile;
+  vm_wiz_search, vm_wiz_activate_editor, hist_wiz, wiz_openfile, wiz.tabs;
 
 procedure RegisterWizards(aRegisterMethod: TWizzardRegisterMethod);
 begin
@@ -23,6 +23,7 @@ begin
   aRegisterMethod(TVMActivateEditorWizard);
   aRegisterMethod(TVMHistoryWizard);
   aRegisterMethod(TVMOpenFileWizard);
+  aRegisterMethod(TVMTabsWizard);
 end;
 
 end.

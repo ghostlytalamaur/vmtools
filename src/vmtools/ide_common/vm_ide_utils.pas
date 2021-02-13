@@ -85,6 +85,8 @@ type
     class function GetProjectFileList(aFromProjectGroup: Boolean): IEnumerable<string>;
     class function GetWordUnderCursorInCurView2: string;
     class function ReloadFile(const FileName: string): Boolean;
+
+    class procedure RegisterFormClassForTheming(FormClass: TCustomFormClass);
   end;
 
 
@@ -407,10 +409,17 @@ end;
 class function TVMOtaUtils.GetCurrentOpenFileName: string;
 var
   ModServicies: IOTAModuleServices;
+  Module: IOTAModule;
 begin
   Result:= '';
   ModServicies:= BorlandIDEServices as IOTAModuleServices;
-  if (ModServicies <> nil) and (ModServicies.CurrentModule <> nil) then
+  if (ModServicies = nil) or (ModServicies.CurrentModule = nil) then
+    Exit;
+
+  Module := ModServicies.CurrentModule;
+  if Module.ModuleFileCount > 0 then
+    Result := Module.ModuleFileEditors[0].FileName
+  else
     Result:= ModServicies.CurrentModule.FileName
 end;
 
@@ -729,6 +738,7 @@ begin
 
   SourceEditor.Show;
   EditView.GetEditWindow.Form.Update;
+  TGXOtaUtils.GxOtaFocusCurrentIDEEditControl;
   if Line < 0 then
     Exit;
 
@@ -1006,6 +1016,16 @@ end;
 class function TVMOtaUtils.GetKeyboardServices: IOTAKeyboardServices;
 begin
   Result := BorlandIDEServices as IOTAKeyboardServices;
+end;
+
+class procedure TVMOtaUtils.RegisterFormClassForTheming(FormClass: TCustomFormClass);
+Var
+  ITS : IOTAIDEThemingServices250;
+Begin
+  if Supports(BorlandIDEServices, IOTAIDEThemingServices250, ITS) and ITS.IDEThemingEnabled then
+  begin
+    ITS.RegisterFormClass(FormClass);
+  end;
 end;
 
 end.

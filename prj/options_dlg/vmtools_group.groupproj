@@ -1,0 +1,48 @@
+﻿<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+    <PropertyGroup>
+        <ProjectGuid>{384989A2-202B-4E69-8E8B-7DCE411C5257}</ProjectGuid>
+    </PropertyGroup>
+    <ItemGroup>
+        <Projects Include="gui_test.dproj">
+            <Dependencies/>
+        </Projects>
+        <Projects Include="..\vmtools\vmtools.dproj">
+            <Dependencies/>
+        </Projects>
+    </ItemGroup>
+    <ProjectExtensions>
+        <Borland.Personality>Default.Personality.12</Borland.Personality>
+        <Borland.ProjectType/>
+        <BorlandProject>
+            <Default.Personality/>
+        </BorlandProject>
+    </ProjectExtensions>
+    <Target Name="gui_test">
+        <MSBuild Projects="gui_test.dproj"/>
+    </Target>
+    <Target Name="gui_test:Clean">
+        <MSBuild Projects="gui_test.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="gui_test:Make">
+        <MSBuild Projects="gui_test.dproj" Targets="Make"/>
+    </Target>
+    <Target Name="vmtools">
+        <MSBuild Projects="..\vmtools\vmtools.dproj"/>
+    </Target>
+    <Target Name="vmtools:Clean">
+        <MSBuild Projects="..\vmtools\vmtools.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="vmtools:Make">
+        <MSBuild Projects="..\vmtools\vmtools.dproj" Targets="Make"/>
+    </Target>
+    <Target Name="Build">
+        <CallTarget Targets="gui_test;vmtools"/>
+    </Target>
+    <Target Name="Clean">
+        <CallTarget Targets="gui_test:Clean;vmtools:Clean"/>
+    </Target>
+    <Target Name="Make">
+        <CallTarget Targets="gui_test:Make;vmtools:Make"/>
+    </Target>
+    <Import Project="$(BDS)\Bin\CodeGear.Group.Targets" Condition="Exists('$(BDS)\Bin\CodeGear.Group.Targets')"/>
+</Project>

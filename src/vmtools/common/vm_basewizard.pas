@@ -23,7 +23,7 @@ type
     property ActionManager: TVMActionManager read GetActionManager;
     property Services: IWizzardsServices read FServices;
   public
-    constructor Create(aServices: IWizzardsServices);
+    constructor Create(aServices: IWizzardsServices); virtual;
     destructor Destroy; override;
 
     function CreateOptionsHandler: INTAAddInOptions; virtual;

@@ -33,6 +33,9 @@ type
 
 implementation
 
+uses
+  toolsapi;
+
 
 { TVMSearchResultDockForm }
 
@@ -53,7 +56,8 @@ begin
   inherited;
   if MainFrame <> nil then
   begin
-    MainFrame.vstFiles.LoadSetting(Params);
+    (BorlandIDEServices as IOTAIDEThemingServices).ApplyTheme(aFrame);
+//    MainFrame.vstFiles.LoadSetting(Params);
     MainFrame.SetHandler(Handler);
   end;
 end;
@@ -81,8 +85,8 @@ procedure TVMOpenFileDockForm.LoadWindowState(Desktop: TCustomIniFile; const Sec
 begin
   inherited;
   Params.ReadSettings(Desktop, Section);
-  if MainFrame <> nil then
-    MainFrame.vstFiles.LoadSetting(Params);
+//  if MainFrame <> nil then
+//    MainFrame.vstFiles.LoadSetting(Params);
 end;
 
 procedure TVMOpenFileDockForm.SaveWindowState(Desktop: TCustomIniFile; const Section: string; IsProject: Boolean);
@@ -90,7 +94,7 @@ begin
   inherited;
   if MainFrame <> nil then
   begin
-    MainFrame.vstFiles.StoreSetting(Params);
+//    MainFrame.vstFiles.StoreSetting(Params);
     Params.WriteSettings(Desktop, Section);
   end;
 end;

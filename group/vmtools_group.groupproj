@@ -1,0 +1,72 @@
+﻿<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+    <PropertyGroup>
+        <ProjectGuid>{06C0BC01-4DAE-49B3-A726-BFCFB2CF6215}</ProjectGuid>
+    </PropertyGroup>
+    <ItemGroup>
+        <Projects Include="..\prj\vmtools\vmtools.dproj">
+            <Dependencies/>
+        </Projects>
+        <Projects Include="..\prj\options_dlg\gui_test.dproj">
+            <Dependencies/>
+        </Projects>
+        <Projects Include="..\prj\vmtools.bpl\vmtools_package.dproj">
+            <Dependencies/>
+        </Projects>
+        <Projects Include="..\..\..\tools\delphi\DGHIDENotifiers-1.1h-XE3-XE10.4\IDE Addins\DGH IDE Notifiers\DGHIDENotifiers.dproj">
+            <Dependencies/>
+        </Projects>
+    </ItemGroup>
+    <ProjectExtensions>
+        <Borland.Personality>Default.Personality.12</Borland.Personality>
+        <Borland.ProjectType/>
+        <BorlandProject>
+            <Default.Personality/>
+        </BorlandProject>
+    </ProjectExtensions>
+    <Target Name="vmtools">
+        <MSBuild Projects="..\prj\vmtools\vmtools.dproj"/>
+    </Target>
+    <Target Name="vmtools:Clean">
+        <MSBuild Projects="..\prj\vmtools\vmtools.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="vmtools:Make">
+        <MSBuild Projects="..\prj\vmtools\vmtools.dproj" Targets="Make"/>
+    </Target>
+    <Target Name="gui_test">
+        <MSBuild Projects="..\prj\options_dlg\gui_test.dproj"/>
+    </Target>
+    <Target Name="gui_test:Clean">
+        <MSBuild Projects="..\prj\options_dlg\gui_test.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="gui_test:Make">
+        <MSBuild Projects="..\prj\options_dlg\gui_test.dproj" Targets="Make"/>
+    </Target>
+    <Target Name="vmtools_package">
+        <MSBuild Projects="..\prj\vmtools.bpl\vmtools_package.dproj"/>
+    </Target>
+    <Target Name="vmtools_package:Clean">
+        <MSBuild Projects="..\prj\vmtools.bpl\vmtools_package.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="vmtools_package:Make">
+        <MSBuild Projects="..\prj\vmtools.bpl\vmtools_package.dproj" Targets="Make"/>
+    </Target>
+    <Target Name="DGHIDENotifiers">
+        <MSBuild Projects="..\..\..\tools\delphi\DGHIDENotifiers-1.1h-XE3-XE10.4\IDE Addins\DGH IDE Notifiers\DGHIDENotifiers.dproj"/>
+    </Target>
+    <Target Name="DGHIDENotifiers:Clean">
+        <MSBuild Projects="..\..\..\tools\delphi\DGHIDENotifiers-1.1h-XE3-XE10.4\IDE Addins\DGH IDE Notifiers\DGHIDENotifiers.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="DGHIDENotifiers:Make">
+        <MSBuild Projects="..\..\..\tools\delphi\DGHIDENotifiers-1.1h-XE3-XE10.4\IDE Addins\DGH IDE Notifiers\DGHIDENotifiers.dproj" Targets="Make"/>
+    </Target>
+    <Target Name="Build">
+        <CallTarget Targets="vmtools;gui_test;vmtools_package;DGHIDENotifiers"/>
+    </Target>
+    <Target Name="Clean">
+        <CallTarget Targets="vmtools:Clean;gui_test:Clean;vmtools_package:Clean;DGHIDENotifiers:Clean"/>
+    </Target>
+    <Target Name="Make">
+        <CallTarget Targets="vmtools:Make;gui_test:Make;vmtools_package:Make;DGHIDENotifiers:Make"/>
+    </Target>
+    <Import Project="$(BDS)\Bin\CodeGear.Group.Targets" Condition="Exists('$(BDS)\Bin\CodeGear.Group.Targets')"/>
+</Project>

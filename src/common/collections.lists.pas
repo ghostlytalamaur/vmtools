@@ -6,7 +6,8 @@ uses
   classes,
   generics.defaults,
   generics.collections,
-  sysutils;
+  sysutils,
+  collections.enumerators, vmsys;
 
 type
   TCustomList<T> = class(TEnumerable<T>)
@@ -84,7 +85,45 @@ type
     property OwnsObjects: Boolean read FOwnsObjects write FOwnsObjects;
   end;
 
+  IList<T> = interface(IEnumerable<T>)
+    procedure SetItem(Index: Integer; const Value: T);
+    function  GetItem(Index: Integer): T;
+    function  GetCount: Integer;
+
+    function  IndexOf(const Value: T): Integer;
+    procedure Delete(Index: Integer);
+    function  Add(const Value: T): Integer;
+    procedure Insert(Index: Integer; const Value: T);
+    function  Extract(const Value: T): T;
+
+    property Count: Integer read GetCount;
+    property Items[Index: Integer]: T read GetItem write SetItem; default;
+  end;
+
+  TListImpl<T> = class(TEnumerableImpl<T>, IList<T>)
+  private
+    FList: IObjectHolder<TList<T>>;
+
+    procedure SetItem(Index: Integer; const Value: T);
+    function  GetItem(Index: Integer): T;
+    function  GetCount: Integer;
+
+  protected
+    function DoGetEnumerator: IEnumerator<T>; override;
+  public
+    constructor Create;
+    function  IndexOf(const Value: T): Integer;
+    procedure Delete(Index: Integer);
+    function  Add(const Value: T): Integer;
+    procedure Insert(Index: Integer; const Value: T);
+    function  Extract(const Value: T): T;
+
+    property Count: Integer read GetCount;
+    property Items[Index: Integer]: T read GetItem write SetItem; default;
+  end;
+
 implementation
+
 
 { TObjList<T> }
 
@@ -344,5 +383,58 @@ begin
   Result := FCurrent < FList.Count;
 end;
 
+
+{ TListImpl<T> }
+
+procedure TListImpl<T>.SetItem(Index: Integer; const Value: T);
+begin
+  FList.Obj[Index] := Value;
+end;
+
+function TListImpl<T>.GetItem(Index: Integer): T;
+begin
+  Result := FList.Obj[Index];
+end;
+
+function TListImpl<T>.GetCount: Integer;
+begin
+  Result := FList.Obj.Count;
+end;
+
+function TListImpl<T>.Add(const Value: T): Integer;
+begin
+  FList.Obj.Add(Value);
+end;
+
+procedure TListImpl<T>.Insert(Index: Integer; const Value: T);
+begin
+  FList.Obj.Insert(Index, Value);
+end;
+
+function TListImpl<T>.Extract(const Value: T): T;
+begin
+  Result := FList.Obj.Extract(Value);
+end;
+
+constructor TListImpl<T>.Create;
+begin
+  inherited Create;
+  FList := TObjectHolder<TList<T>>.Create(TList<T>.Create, True);
+end;
+
+function TListImpl<T>.IndexOf(const Value: T): Integer;
+begin
+  Result := FList.Obj.IndexOf(Value);
+end;
+
+procedure TListImpl<T>.Delete(Index: Integer);
+begin
+  FList.Obj.Delete(Index);
+end;
+
+function TListImpl<T>.DoGetEnumerator: IEnumerator<T>;
+begin
+  Result := TWrapEnumerator<T>.Create(IObjectHolder<TEnumerable<T>>(Pointer(@FList)^))
+end;
 
 end.

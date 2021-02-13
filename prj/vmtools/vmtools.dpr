@@ -79,7 +79,9 @@ uses
   vm.gui.control_updater in '..\..\src\common\vm.gui.control_updater.pas',
   search_table in '..\..\src\search\search_table.pas',
   vm.ide.debug in '..\..\src\vmtools\common\vm.ide.debug.pas',
-  vm.cn_debug in '..\..\src\common\vm.cn_debug.pas';
+  vm.cn_debug in '..\..\src\common\vm.cn_debug.pas',
+  wiz.tabs in '..\..\src\vmtools\editor-tabs\wiz.tabs.pas',
+  wiz.tabs.form in '..\..\src\vmtools\editor-tabs\wiz.tabs.form.pas' {TabsListForm};
 
 {$R *.res}
 

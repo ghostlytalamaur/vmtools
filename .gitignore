@@ -19,8 +19,12 @@ __history
 __history/
 *.~*
 *.bak
-
+*.cbk
 *.stat
 *.dof
 zzz_commit
 cond_define.inc
+
+~codesearch.index
+
+prd/__pycache__

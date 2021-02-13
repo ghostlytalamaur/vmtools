@@ -7,7 +7,7 @@ uses
   Graphics, Controls, Forms, Dialogs, ComCtrls, StdCtrls, extctrls,
   classes, inifiles, VirtualTrees, vtree_mod, Buttons,
   generics.collections, observer, vmsys, openfile_handler,
-  base_params, collections.deque;
+  base_params, collections.deque, Vcl.Grids;
 
 type
   TOpenFileFrameParams = class(TBaseParams)
@@ -23,27 +23,36 @@ type
     property LastFiles: TDeque<string> read FLastFiles;
   end;
 
-  TVirtualStringTree = class(TExtVirtualStringTree);
+  TNodeData = class(TObject)
+  strict private
+    FFullPath: string;
+    FFileName: string;
+    FFilePath: string;
+    function GetFileName: string;
+    function GetFilePath: string;
+  public
+    constructor Create(const aFullPath: string);
+
+    property FileName: string read GetFileName;
+    property FilePath: string read GetFilePath;
+    property FullPath: string read FFullPath;
+  end;
+
   TOpenFileFrame = class(TFrame)
     Panel1: TPanel;
-    vstFiles: TVirtualStringTree;
     btnRebuild: TSpeedButton;
     StatusBar1: TStatusBar;
-    cmbFilter: TComboBoxEx;
-    procedure vstFilesGetText(Sender: TBaseVirtualTree; Node: PVirtualNode; Column: TColumnIndex;
-      TextType: TVSTTextType; var CellText: string);
-    procedure vstFilesInitNode(Sender: TBaseVirtualTree; ParentNode, Node: PVirtualNode;
-      var InitialStates: TVirtualNodeInitStates);
-    procedure vstFilesFreeNode(Sender: TBaseVirtualTree; Node: PVirtualNode);
+    cmbFilter: TComboBox;
+    lvFiles: TListView;
     procedure vstFilesNodeDblClick(Sender: TBaseVirtualTree; const HitInfo: THitInfo);
     procedure btnRebuildClick(Sender: TObject);
     procedure cmbFilterChange(Sender: TObject);
-    procedure vstFilesIncrementalSearch(Sender: TBaseVirtualTree; Node: PVirtualNode; const SearchText: string; var Result:
-        Integer);
+    procedure lvFilesData(Sender: TObject; Item: TListItem);
+    procedure OnKeyDownEvent(Sender: TObject; var Key: Word; Shift: TShiftState);
   strict private
     FFrameParams: TOpenFileFrameParams;
     FHandlerHolder: IObjectHolder<TBaseOpenFileHandler>;
-    FFilteredList: TList<string>;
+    FFilteredList: TList<TNodeData>;
     FStatusObserver: IDataObserver<TOpenFileHandlerStatus>;
     FPathsObserver: IDataObserver<TList<string>>;
 
@@ -51,8 +60,6 @@ type
     procedure SetupControls;
     function OpenCurrentFile: Boolean;
     function TryOpenFileAt(aIndex: Integer): Boolean;
-    procedure OnKeyDownEvent(Sender: TObject; var Key: Word; Shift: TShiftState);
-    procedure SetupTree;
     procedure UpdateStatus(aStatus: TOpenFileHandlerStatus);
     function GetHandler: TBaseOpenFileHandler;
     property Handler: TBaseOpenFileHandler read GetHandler;
@@ -69,23 +76,7 @@ implementation
 
 uses
   regularexpressions, strutils, str_utils, generics.defaults,
-  collections.array_utils;
-
-type
-  TNodeData = class(TObject)
-  strict private
-    FFullPath: string;
-    FFileName: string;
-    FFilePath: string;
-    function GetFileName: string;
-    function GetFilePath: string;
-  public
-    constructor Create(const aFullPath: string);
-
-    property FileName: string read GetFileName;
-    property FilePath: string read GetFilePath;
-    property FullPath: string read FFullPath;
-  end;
+  collections.array_utils, math, collections.common;
 
 const
   cstColumnFirst = 0;
@@ -117,7 +108,6 @@ var
   FrameHolder: IObjectHolder<TOpenFileFrame>;
 begin
   inherited;
-
   FFrameParams := TOpenFileFrameParams.Create;
   FFrameParams.ReadParams;
   FrameHolder := TObjectHolder<TOpenFileFrame>.Create(Self, False);
@@ -132,42 +122,27 @@ begin
 
   FPathsObserver := TDelegatedDataObserver<TList<string>>.Create(
     procedure (aPaths: TList<string>)
+    var
+      Nodes: IEnumerable<TNodeData>;
     begin
       if not FrameHolder.IsAlive then
         Exit;
 
       FrameHolder.Obj.FFilteredList.Clear;
-      if aPaths <> nil then
-        FrameHolder.Obj.FFilteredList.AddRange(aPaths);
+      Nodes := Pipeline<string>.From(aPaths)
+        .Map<TNodeData>(function (Path: string): TNodeData
+          begin
+            Result := TNodeData.Create(Path);
+          end)
+        .Enum;
+
+      FrameHolder.Obj.FFilteredList.AddRange(Nodes);
       FrameHolder.Obj.SetupControls;
     end);
 
-  FFilteredList := TList<string>.Create;
-  SetupTree;
-  vstFiles.OnKeyDown := OnKeyDownEvent;
-  cmbFilter.OnKeyDown := OnKeyDownEvent;
+  FFilteredList := TObjectList<TNodeData>.Create;
   UpdateFilterCombo;
   SetupControls;
-end;
-
-procedure TOpenFileFrame.SetupTree;
-var
-  I: Integer;
-  Col: TVirtualTreeColumn;
-begin
-  vstFiles.Header.Columns.Clear;
-  for I := Low(cstColumns) to High(cstColumns) do
-  begin
-    Col := vstFiles.Header.Columns.Add;
-    Col.Text := cstColumns[I];
-    Col.Width := cstColumnsWidth[I];
-  end;
-  vstFiles.Header.Columns[cstColumnNum].Options := vstFiles.Header.Columns[cstColumnNum].Options + [coSmartResize];
-  vstFiles.Header.Options := vstFiles.Header.Options + [hoVisible, hoAutoResize];
-  vstFiles.TreeOptions.AutoOptions := vstFiles.TreeOptions.AutoOptions + [toAutoScroll] - [toDisableAutoscrollOnFocus];
-  vstFiles.TreeOptions.SelectionOptions := vstFiles.TreeOptions.SelectionOptions + [toFullRowSelect, toAlwaysSelectNode];
-  vstFiles.TreeOptions.PaintOptions := vstFiles.TreeOptions.PaintOptions - [toShowRoot] +
-      [toShowHorzGridLines, toHideFocusRect];
 end;
 
 procedure TOpenFileFrame.UpdateStatus(aStatus: TOpenFileHandlerStatus);
@@ -213,6 +188,23 @@ begin
     Result := nil;
 end;
 
+procedure TOpenFileFrame.lvFilesData(Sender: TObject; Item: TListItem);
+var
+  Node: TNodeData;
+begin
+  if (Item.Index >= 0) and (Item.Index < FFilteredList.Count) then
+    Node := FFilteredList[Item.Index]
+  else
+    Node := nil;
+
+  Item.Caption := IntToStr(Item.Index + 1);
+  if Node <> nil then
+  begin
+    Item.SubItems.Add(Node.FileName);
+    Item.SubItems.Add(Node.FilePath);
+  end;
+end;
+
 procedure TOpenFileFrame.OnKeyDownEvent(Sender: TObject; var Key: Word; Shift: TShiftState);
   procedure DoOpenFileAt(aIndex: Integer);
   begin
@@ -242,18 +234,19 @@ begin
     Ord('0'): DoOpenFileAt(9);
     VK_DOWN:
     begin
-      if not vstFiles.Focused and vstFiles.CanFocus and (vstFiles.RootNodeCount > 0) and
+      if not lvFiles.Focused and lvFiles.CanFocus and (lvFiles.Items.Count > 0) and
         not (cmbFilter.Focused and ([ssCtrl] = Shift)) then
       begin
-        vstFiles.SetFocus;
-        if vstFiles.GetFirstSelected <> nil then
-          vstFiles.Selected[vstFiles.GetFirstSelected.NextSibling] := True;
+        lvFiles.SetFocus;
+
+        if lvFiles.ItemIndex > 0 then
+          lvFiles.ItemIndex := math.Max(lvFiles.Items.Count - 1, lvFiles.ItemIndex + 1);
         Key := Ord(#0);
       end;
     end;
     VK_UP:
     begin
-      if vstFiles.Focused and (vstFiles.GetFirst = vstFiles.FocusedNode) and cmbFilter.CanFocus then
+      if lvFiles.Focused and (lvFiles.ItemIndex = 0) and cmbFilter.CanFocus then
       begin
         cmbFilter.SetFocus;
         Key := Ord(#0);
@@ -264,8 +257,8 @@ end;
 
 function TOpenFileFrame.OpenCurrentFile: Boolean;
 begin
-  if vstFiles.FocusedNode <> nil then
-    Result := TryOpenFileAt(vstFiles.FocusedNode.Index)
+  if lvFiles.ItemIndex >= 0 then
+    Result := TryOpenFileAt(lvFiles.ItemIndex)
   else
     Result := False;
 end;
@@ -276,7 +269,7 @@ begin
   if (Handler = nil) or (aIndex < 0) or (aIndex >= FFilteredList.Count) then
     Exit;
 
-  Handler.OpenFile(FFilteredList[aIndex]);
+  Handler.OpenFile(FFilteredList[aIndex].FullPath);
 
   if FFrameParams.LastFiles.First <> cmbFilter.Text then
   begin
@@ -317,59 +310,16 @@ end;
 
 procedure TOpenFileFrame.SetupControls;
 begin
-  vstFiles.Clear;
-  vstFiles.RootNodeCount := FFilteredList.Count;
-end;
+  lvFiles.Items.BeginUpdate;
+  try
+    lvFiles.Items.Clear;
+    lvFiles.Items.Count := FFilteredList.Count;
 
-procedure TOpenFileFrame.vstFilesFreeNode(Sender: TBaseVirtualTree; Node: PVirtualNode);
-var
-  NodeData: TNodeData;
-begin
-  NodeData := vstFiles.GetNodeData<TNodeData>(Node);
-  FreeAndNil(NodeData);
-  vstFiles.SetNodeData(Node, nil);
-end;
-
-procedure TOpenFileFrame.vstFilesGetText(Sender: TBaseVirtualTree; Node: PVirtualNode; Column: TColumnIndex;
-  TextType: TVSTTextType; var CellText: string);
-var
-  NodeData: TNodeData;
-begin
-  NodeData := vstFiles.GetNodeData<TNodeData>(Node);
-  if NodeData = nil then
-    Exit;
-
-  case Column of
-    cstColumnNum:  CellText := IntToStr(vstFiles.AbsoluteIndex(Node) + 1);
-    cstColumnFile: CellText := NodeData.FileName;
-    cstColumnPath: CellText := NodeData.FilePath
+    if lvFiles.Items.Count > 0 then
+      lvFiles.ItemIndex := 0;
+  finally
+    lvFiles.Items.EndUpdate;
   end;
-end;
-
-procedure TOpenFileFrame.vstFilesIncrementalSearch(Sender: TBaseVirtualTree; Node: PVirtualNode; const SearchText:
-    string; var Result: Integer);
-var
-  NodeData: TNodeData;
-begin
-  Result := 1;
-  NodeData := vstFiles.GetNodeData<TNodeData>(Node);
-  if NodeData = nil then
-    Exit;
-
-  if TStrUtils.PosI(SearchText, IncludeTrailingPathDelimiter(NodeData.FilePath) + NodeData.FileName) > 0 then
-    Result := 0;
-end;
-
-procedure TOpenFileFrame.vstFilesInitNode(Sender: TBaseVirtualTree; ParentNode, Node: PVirtualNode;
-  var InitialStates: TVirtualNodeInitStates);
-var
-  FullPath: string;
-begin
-  if (Node.Index < Cardinal(FFilteredList.Count)) then
-    FullPath := FFilteredList[Node.Index];
-
-  if FullPath <> '' then
-    Node.SetData<TNodeData>(TNodeData.Create(FullPath));
 end;
 
 procedure TOpenFileFrame.vstFilesNodeDblClick(Sender: TBaseVirtualTree; const HitInfo: THitInfo);

@@ -78,6 +78,9 @@ end;
 
 procedure TControlUpdater.RequestUpdate;
 begin
+  FOnUpdateControl;
+  exit;
+
   IsValid := False;
   if IsUpdating then
     Exit;

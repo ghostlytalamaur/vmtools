@@ -37,7 +37,7 @@ type
 implementation
 
 uses
-  sysutils;
+  sysutils, toolsapi;
 
 { TVMSearchResultDockForm }
 
@@ -70,6 +70,7 @@ begin
   if MainFrame = nil then
     Exit;
 
+  (BorlandIDEServices as IOTAIDEThemingServices).ApplyTheme(aFrame);
   MainFrame.vstResults.LoadSetting(Params);
   if FHandler.IsAlive then
     MainFrame.SetHandler(FHandler.Obj);

@@ -10,6 +10,7 @@ object OpenFileFrame: TOpenFileFrame
     Width = 542
     Height = 301
     Align = alClient
+    BevelOuter = bvNone
     TabOrder = 0
     DesignSize = (
       542
@@ -23,44 +24,11 @@ object OpenFileFrame: TOpenFileFrame
       Caption = 'R'
       Flat = True
       OnClick = btnRebuildClick
-      ExplicitLeft = 463
-    end
-    object vstFiles: TVirtualStringTree
-      Left = 8
-      Top = 35
-      Width = 526
-      Height = 240
-      Anchors = [akLeft, akTop, akRight, akBottom]
-      Header.AutoSizeIndex = 0
-      Header.Font.Charset = DEFAULT_CHARSET
-      Header.Font.Color = clWindowText
-      Header.Font.Height = -11
-      Header.Font.Name = 'Tahoma'
-      Header.Font.Style = []
-      Header.Options = [hoColumnResize, hoDrag, hoShowSortGlyphs, hoVisible]
-      IncrementalSearch = isAll
-      TabOrder = 0
-      OnFreeNode = vstFilesFreeNode
-      OnGetText = vstFilesGetText
-      OnIncrementalSearch = vstFilesIncrementalSearch
-      OnInitNode = vstFilesInitNode
-      OnNodeDblClick = vstFilesNodeDblClick
-      Columns = <
-        item
-          MinWidth = 250
-          Position = 0
-          Width = 350
-          WideText = 'File name'
-        end
-        item
-          Position = 1
-          WideText = 'File path'
-        end>
     end
     object StatusBar1: TStatusBar
-      Left = 1
-      Top = 281
-      Width = 540
+      Left = 0
+      Top = 282
+      Width = 542
       Height = 19
       Panels = <
         item
@@ -68,17 +36,44 @@ object OpenFileFrame: TOpenFileFrame
           Width = 200
         end>
     end
-    object cmbFilter: TComboBoxEx
+    object cmbFilter: TComboBox
       Left = 8
-      Top = 7
+      Top = 8
       Width = 497
-      Height = 22
-      AutoCompleteOptions = []
-      ItemsEx = <>
+      Height = 21
+      AutoComplete = False
       Anchors = [akLeft, akTop, akRight]
-      TabOrder = 2
-      Text = 'cmbFilter'
+      TabOrder = 0
       OnChange = cmbFilterChange
+      OnKeyDown = OnKeyDownEvent
+    end
+    object lvFiles: TListView
+      Left = 8
+      Top = 35
+      Width = 526
+      Height = 240
+      Anchors = [akLeft, akTop, akRight, akBottom]
+      BevelInner = bvNone
+      BevelOuter = bvNone
+      Columns = <
+        item
+          Caption = '#'
+          Width = 25
+        end
+        item
+          Caption = 'File'
+          Width = 200
+        end
+        item
+          AutoSize = True
+          Caption = 'Path'
+        end>
+      OwnerData = True
+      RowSelect = True
+      TabOrder = 1
+      ViewStyle = vsReport
+      OnData = lvFilesData
+      OnKeyDown = OnKeyDownEvent
     end
   end
 end
